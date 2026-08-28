@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const db     = require('../database');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 // GET /api/padre/mis-hijos — vista del padre
 async function misHijos(req, res) {
@@ -15,6 +16,7 @@ async function misHijos(req, res) {
       LEFT JOIN grupos            g  ON g.id  = eg.grupo_id
       LEFT JOIN colegios          c  ON c.id  = g.colegio_id
       WHERE pe.padre_id = ?
+      ORDER BY ${ordenApellido('u.nombre')} ASC
     `, [padreId]);
 
     const resultado = await Promise.all(hijos.map(async (hijo) => {
@@ -174,7 +176,7 @@ async function listar(req, res) {
   try {
     const [padres] = await db.query(`
       SELECT u.id, u.nombre, u.email, u.activo,
-             GROUP_CONCAT(h.nombre ORDER BY h.nombre SEPARATOR ', ') AS hijos
+             GROUP_CONCAT(h.nombre ORDER BY ${ordenApellido('h.nombre')} SEPARATOR ', ') AS hijos
       FROM usuarios u
       LEFT JOIN padre_estudiante pe ON pe.padre_id = u.id
       LEFT JOIN usuarios          h  ON h.id = pe.estudiante_id

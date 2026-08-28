@@ -602,7 +602,7 @@ export default function CrearActividad() {
           {/* Tipo */}
           <div style={es.card}>
             <h3 style={es.cardTitulo}>
-              Tipo de actividad
+              Tipo de Pregunta
               {modoEdicion && <span style={{ fontSize: 12, color: '#888', fontWeight: 400, marginLeft: 8 }}>(no se puede cambiar al editar)</span>}
             </h3>
             <div style={es.tiposGrid}>

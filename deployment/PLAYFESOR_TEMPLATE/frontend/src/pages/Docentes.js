@@ -15,6 +15,8 @@ export default function Docentes() {
   const [guardando, setGuardando] = useState(false);
   const [form, setForm] = useState({ nombre: '', email: '', password: '', esDirectorGrupo: false, grupoDirigidoId: '' });
   const [formAsig, setFormAsig] = useState({ docente_id: '', grupo_id: '', materia_id: '' });
+  const [dirGrupoSel, setDirGrupoSel] = useState({});
+  const [guardandoDirector, setGuardandoDirector] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { cargar(); }, []);
@@ -52,6 +54,23 @@ export default function Docentes() {
       setDocenteAbierto(id);
       if (!asignaciones[id]) cargarAsignaciones(id);
       setFormAsig({ docente_id: id, grupo_id: '', materia_id: '' });
+      const docente = docentes.find(d => d.id === id);
+      setDirGrupoSel(prev => ({ ...prev, [id]: docente?.grupo_dirigido_id ? String(docente.grupo_dirigido_id) : '' }));
+    }
+  }
+
+  async function handleGuardarDirector(docenteId, grupoIdExplicito) {
+    setGuardandoDirector(true); setError('');
+    try {
+      const grupoId = grupoIdExplicito !== undefined ? grupoIdExplicito : (dirGrupoSel[docenteId] || null);
+      await axiosAuth.put(`/api/docentes/${docenteId}/grupo-dirigido`, { grupo_id: grupoId });
+      setMensaje(grupoId ? 'Director de grupo asignado' : 'Director de grupo removido');
+      await cargar();
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al actualizar el director de grupo');
+    } finally {
+      setGuardandoDirector(false);
     }
   }
 
@@ -189,6 +208,44 @@ export default function Docentes() {
 
                 {docenteAbierto === d.id && (
                   <div style={es.asignacionesPanel}>
+                    <p style={{ fontSize: '13px', fontWeight: '600', color: '#555', marginBottom: '8px' }}>
+                      Director de grupo
+                    </p>
+                    {d.grupo_dirigido_id ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+                        <span style={es.directorBadge}>Director Grupo {d.grado_grupo_dirigido}-{d.nombre_grupo_dirigido}</span>
+                        <button
+                          onClick={() => handleGuardarDirector(d.id, null)}
+                          disabled={guardandoDirector}
+                          style={es.btnPeligro}
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                        <select
+                          value={dirGrupoSel[d.id] ?? ''}
+                          onChange={e => setDirGrupoSel(prev => ({ ...prev, [d.id]: e.target.value }))}
+                          style={{ ...es.select, flex: 1, minWidth: '160px' }}
+                        >
+                          <option value="">— Selecciona un grupo disponible —</option>
+                          {grupos
+                            .filter(g => !gruposConDirector.has(g.id))
+                            .map(g => (
+                              <option key={g.id} value={g.id}>{g.grado}° {g.nombre}</option>
+                            ))}
+                        </select>
+                        <button
+                          onClick={() => handleGuardarDirector(d.id)}
+                          disabled={guardandoDirector || !dirGrupoSel[d.id]}
+                          style={es.btnPrimario}
+                        >
+                          {guardandoDirector ? 'Guardando...' : 'Asignar'}
+                        </button>
+                      </div>
+                    )}
+
                     <p style={{ fontSize: '13px', fontWeight: '600', color: '#555', marginBottom: '12px' }}>
                       Asignaciones de {d.nombre}
                     </p>

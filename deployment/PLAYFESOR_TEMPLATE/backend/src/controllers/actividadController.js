@@ -1,4 +1,5 @@
 const db = require('../database');
+const { ordenApellido, ordenarPorApellido } = require('../utils/ordenNombre');
 
 // GET /api/actividades/docente — actividades creadas por el docente autenticado
 async function listarParaDocente(req, res) {
@@ -103,17 +104,70 @@ async function obtener(req, res) {
   }
 }
 
+// Valida el porcentaje de una actividad y que, sumado a las demás actividades
+// activas del mismo grupo+materia+período, no supere el 100%. `excluirId` se
+// usa al editar, para no contar la propia actividad dos veces.
+async function validarPorcentaje(porcentaje, grupo_id, materia_id, periodo, excluirId) {
+  const num = parseFloat(porcentaje);
+  if (porcentaje === undefined || porcentaje === null || porcentaje === '' || isNaN(num)) {
+    return 'El porcentaje de la actividad es obligatorio';
+  }
+  if (num <= 0 || num > 100) {
+    return 'El porcentaje debe ser mayor a 0 y no puede superar 100';
+  }
+  let condicionExcluir = '';
+  const params = [grupo_id, materia_id, periodo];
+  if (excluirId) { condicionExcluir = ' AND id != ?'; params.push(excluirId); }
+  const [[fila]] = await db.query(
+    `SELECT COALESCE(SUM(porcentaje), 0) AS suma FROM actividades
+     WHERE grupo_id = ? AND materia_id = ? AND periodo = ? AND activa = TRUE${condicionExcluir}`,
+    params
+  );
+  const sumaTotal = parseFloat(fila.suma) + num;
+  if (sumaTotal > 100.001) {
+    return `La suma de porcentajes de las actividades de este período sería ${Math.round(sumaTotal * 100) / 100}% — no puede superar 100%`;
+  }
+  return null;
+}
+
+// GET /api/actividades/porcentaje-disponible?grupo_id=&materia_id=&periodo=&excluir_id=
+async function porcentajeDisponible(req, res) {
+  const { grupo_id, materia_id, periodo, excluir_id } = req.query;
+  if (!grupo_id || !materia_id || !periodo) {
+    return res.status(400).json({ error: 'Faltan parámetros: grupo_id, materia_id, periodo' });
+  }
+  try {
+    let condicionExcluir = '';
+    const params = [grupo_id, materia_id, periodo];
+    if (excluir_id) { condicionExcluir = ' AND id != ?'; params.push(excluir_id); }
+    const [[fila]] = await db.query(
+      `SELECT COALESCE(SUM(porcentaje), 0) AS suma FROM actividades
+       WHERE grupo_id = ? AND materia_id = ? AND periodo = ? AND activa = TRUE${condicionExcluir}`,
+      params
+    );
+    const usado = Math.round(parseFloat(fila.suma) * 100) / 100;
+    res.json({ data: { usado, disponible: Math.round((100 - usado) * 100) / 100 } });
+  } catch (err) {
+    console.error('Error en porcentajeDisponible:', err);
+    res.status(500).json({ error: 'Error al calcular el porcentaje disponible' });
+  }
+}
+
 // POST /api/actividades
 async function crear(req, res) {
   const {
     titulo, descripcion, tipo, contenido,
-    materia_id, grupo_id, periodo,
+    materia_id, grupo_id, periodo, porcentaje,
+    fecha_inicio, fecha_cierre,
     tiempo_limite_minutos, intentos_permitidos
   } = req.body;
 
   if (!titulo || !tipo || !contenido || !materia_id || !grupo_id || !periodo) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
+
+  const errorPorcentaje = await validarPorcentaje(porcentaje, grupo_id, materia_id, periodo);
+  if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
 
   try {
     const [grupos] = await db.query('SELECT grado FROM grupos WHERE id = ?', [grupo_id]);
@@ -123,12 +177,14 @@ async function crear(req, res) {
     const [result] = await db.query(
       `INSERT INTO actividades
         (titulo, descripcion, tipo, contenido, docente_id, materia_id, grupo_id,
-         periodo, grado_minimo, grado_maximo, tiempo_limite_minutos, intentos_permitidos)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         periodo, porcentaje, fecha_inicio, fecha_cierre,
+         grado_minimo, grado_maximo, tiempo_limite_minutos, intentos_permitidos)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         titulo, descripcion || null, tipo, contenidoJson,
         req.usuario.id, materia_id, grupo_id,
-        periodo, grado, grado,
+        periodo, parseFloat(porcentaje), fecha_inicio || null, fecha_cierre || null,
+        grado, grado,
         tiempo_limite_minutos || 30, intentos_permitidos || 3
       ]
     );
@@ -144,8 +200,28 @@ async function actualizar(req, res) {
   const { id } = req.params;
   const {
     titulo, descripcion, activa, tiempo_limite_minutos,
-    materia_id, grupo_id, periodo, intentos_permitidos, contenido,
+    materia_id, grupo_id, periodo, porcentaje, fecha_inicio, fecha_cierre,
+    intentos_permitidos, contenido,
   } = req.body;
+
+  // El porcentaje afecta la validación de suma 100% del grupo+materia+período
+  // — si cambia cualquiera de esos 4 valores, hay que revalidar contra el
+  // estado real de la actividad (los que no cambian se toman de la BD).
+  if (porcentaje !== undefined || materia_id !== undefined || grupo_id !== undefined || periodo !== undefined) {
+    const [[actual]] = await db.query(
+      'SELECT materia_id, grupo_id, periodo, porcentaje FROM actividades WHERE id = ? AND docente_id = ?',
+      [id, req.usuario.id]
+    );
+    if (!actual) return res.status(404).json({ error: 'Actividad no encontrada' });
+    const errorPorcentaje = await validarPorcentaje(
+      porcentaje !== undefined ? porcentaje : actual.porcentaje,
+      grupo_id !== undefined ? grupo_id : actual.grupo_id,
+      materia_id !== undefined ? materia_id : actual.materia_id,
+      periodo !== undefined ? periodo : actual.periodo,
+      id
+    );
+    if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
+  }
 
   const campos = [];
   const params = [];
@@ -156,6 +232,9 @@ async function actualizar(req, res) {
   if (tiempo_limite_minutos !== undefined) { campos.push('tiempo_limite_minutos = ?'); params.push(tiempo_limite_minutos); }
   if (materia_id          !== undefined) { campos.push('materia_id = ?');            params.push(materia_id); }
   if (periodo             !== undefined) { campos.push('periodo = ?');               params.push(periodo); }
+  if (porcentaje          !== undefined) { campos.push('porcentaje = ?');            params.push(parseFloat(porcentaje)); }
+  if (fecha_inicio        !== undefined) { campos.push('fecha_inicio = ?');          params.push(fecha_inicio || null); }
+  if (fecha_cierre        !== undefined) { campos.push('fecha_cierre = ?');          params.push(fecha_cierre || null); }
   if (intentos_permitidos !== undefined) { campos.push('intentos_permitidos = ?');   params.push(intentos_permitidos); }
   if (contenido           !== undefined) {
     campos.push('contenido = ?');
@@ -325,7 +404,7 @@ async function obtenerPendientes(req, res) {
         AND u.id NOT IN (
           SELECT ra.estudiante_id FROM resultados_actividades ra WHERE ra.actividad_id = ?
         )
-      ORDER BY u.nombre ASC
+      ORDER BY ${ordenApellido('u.nombre')} ASC
     `, [acts[0].grupo_id, id]);
     res.json({ data: filas });
   } catch (err) {
@@ -573,11 +652,14 @@ Reglas:
 // POST /api/actividades/calificar-manual
 // Docente crea una evaluación presencial y registra las notas directamente
 async function calificarManual(req, res) {
-  const { titulo, grupo_id, materia_id, periodo, calificaciones } = req.body;
+  const { titulo, grupo_id, materia_id, periodo, porcentaje, calificaciones } = req.body;
 
   if (!titulo || !grupo_id || !materia_id || !periodo || !Array.isArray(calificaciones) || calificaciones.length === 0) {
     return res.status(400).json({ error: 'Faltan campos: titulo, grupo_id, materia_id, periodo, calificaciones' });
   }
+
+  const errorPorcentaje = await validarPorcentaje(porcentaje, grupo_id, materia_id, periodo);
+  if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
 
   const conn = await db.getConnection();
   try {
@@ -586,10 +668,10 @@ async function calificarManual(req, res) {
     // 1. Crear la actividad de tipo 'manual'
     const [result] = await conn.query(
       `INSERT INTO actividades
-        (titulo, tipo, contenido, docente_id, materia_id, grupo_id, periodo, grado_minimo, grado_maximo, activa)
-       SELECT ?, 'manual', '{}', ?, ?, ?, ?, grado, grado, TRUE
+        (titulo, tipo, contenido, docente_id, materia_id, grupo_id, periodo, porcentaje, grado_minimo, grado_maximo, activa)
+       SELECT ?, 'manual', '{}', ?, ?, ?, ?, ?, grado, grado, TRUE
        FROM grupos WHERE id = ?`,
-      [titulo, req.usuario.id, materia_id, grupo_id, periodo, grupo_id]
+      [titulo, req.usuario.id, materia_id, grupo_id, periodo, parseFloat(porcentaje), grupo_id]
     );
     const actividadId = result.insertId;
 
@@ -648,22 +730,30 @@ async function misMaterias(req, res) {
   }
 }
 
+const TIPOS_COMPONENTE = ['autoevaluacion', 'coevaluacion', 'heteroevaluacion'];
+// Peso de cada bloque en la nota final: actividades 80%, autoeval 5%,
+// coeval 5%, heteroeval 10%.
+const PESO_ACTIVIDADES = 0.80;
+const PESOS_COMPONENTE = { autoevaluacion: 0.05, coevaluacion: 0.05, heteroevaluacion: 0.10 };
+
 // GET /api/actividades/libro?grupo_id=X&materia_id=Y&periodo=Z
-// Matriz completa: actividades × estudiantes con sus notas
+// Matriz completa: actividades × estudiantes con sus notas, más los
+// componentes de autoevaluación/coevaluación/heteroevaluación y la nota
+// final ponderada de cada estudiante.
 async function libroCalificaciones(req, res) {
   const { grupo_id, materia_id, periodo } = req.query;
   if (!grupo_id || !materia_id || !periodo) {
     return res.status(400).json({ error: 'Faltan parámetros: grupo_id, materia_id, periodo' });
   }
   try {
-    // 1. Actividades del grupo+materia+periodo, con cuántos estudiantes ya
-    // entregaron. El promedio por actividad se calcula más abajo, en JS, sobre
-    // el total de estudiantes del grupo (regla de tres) — no solo sobre los
-    // que entregaron.
+    // 1. Actividades del grupo+materia+periodo, con su porcentaje y cuántos
+    // estudiantes ya entregaron. El promedio por actividad se calcula más
+    // abajo, en JS, sobre el total de estudiantes del grupo — no solo sobre
+    // los que entregaron.
     // Toma el mejor intento de cada estudiante por actividad — si no, los intentos
     // múltiples (intentos_permitidos) se promedian entre sí y distorsionan la nota real
     const [actividades] = await db.query(`
-      SELECT a.id, a.titulo, a.creado_en,
+      SELECT a.id, a.titulo, a.creado_en, a.porcentaje, a.fecha_inicio, a.fecha_cierre,
         COUNT(mejores.estudiante_id) AS total_completadas
       FROM actividades a
       LEFT JOIN (
@@ -672,7 +762,7 @@ async function libroCalificaciones(req, res) {
         GROUP BY actividad_id, estudiante_id
       ) mejores ON mejores.actividad_id = a.id
       WHERE a.grupo_id = ? AND a.materia_id = ? AND a.periodo = ? AND a.activa = TRUE
-      GROUP BY a.id, a.titulo, a.creado_en
+      GROUP BY a.id, a.titulo, a.creado_en, a.porcentaje, a.fecha_inicio, a.fecha_cierre
       ORDER BY a.creado_en ASC
     `, [grupo_id, materia_id, periodo]);
 
@@ -690,10 +780,21 @@ async function libroCalificaciones(req, res) {
         GROUP BY actividad_id, estudiante_id
       ) mejores ON mejores.actividad_id = a.id AND mejores.estudiante_id = u.id
       WHERE eg.grupo_id = ?
-      ORDER BY u.nombre ASC
+      ORDER BY ${ordenApellido('u.nombre')} ASC
     `, [materia_id, periodo, grupo_id]);
 
-    // 3. Construir mapa de estudiantes
+    // 3. Componentes manuales (autoeval/coeval/heteroeval) ya guardados
+    const [componentesFilas] = await db.query(`
+      SELECT estudiante_id, tipo, nota FROM componentes_evaluacion
+      WHERE grupo_id = ? AND materia_id = ? AND periodo = ?
+    `, [grupo_id, materia_id, periodo]);
+    const componentesMap = {};
+    componentesFilas.forEach(c => {
+      if (!componentesMap[c.estudiante_id]) componentesMap[c.estudiante_id] = {};
+      componentesMap[c.estudiante_id][c.tipo] = parseFloat(c.nota);
+    });
+
+    // 4. Construir mapa de estudiantes
     // mysql2 devuelve las columnas DECIMAL (la nota) como string — convertir a
     // número real aquí evita que las sumas de más abajo concatenen texto.
     const estudiantesMap = {};
@@ -706,22 +807,52 @@ async function libroCalificaciones(req, res) {
       }
     });
 
-    const listaEstudiantes = Object.values(estudiantesMap);
+    // Object.values() reordena las claves numéricas (estudiante_id) de forma
+    // ascendente sin importar el ORDER BY de la consulta — hay que reordenar
+    // explícitamente por apellido.
+    const listaEstudiantes = ordenarPorApellido(Object.values(estudiantesMap));
     const totalEstudiantesGrupo = listaEstudiantes.length;
     const actIds = actividades.map(a => a.id);
+    const sumaPorcentaje = Math.round(actividades.reduce((s, a) => s + parseFloat(a.porcentaje || 0), 0) * 100) / 100;
+    const porcentajeCompleto = actIds.length > 0 && Math.abs(sumaPorcentaje - 100) < 0.01;
 
-    // Promedio por estudiante — "regla de tres": suma de notas obtenidas ÷
-    // actividades asignadas en el período (no ÷ solo las que entregó). Lo no
-    // entregado cuenta como 0, igual que en el boletín oficial.
+    // Promedio ponderado de actividades por estudiante: Σ(nota_i × %_i) / 100.
+    // Lo no entregado cuenta como 0 (misma regla de tres del boletín, aplicada
+    // ahora por porcentaje en vez de partes iguales). Solo es la nota válida
+    // del bloque de actividades (80%) cuando los porcentajes suman 100%.
     const estudiantes = listaEstudiantes.map(est => {
-      const vals = actIds.map(aid => est.notas[aid]).filter(n => n !== undefined && n !== null);
-      const suma = vals.reduce((s, n) => s + n, 0);
-      const promedio = actIds.length ? Math.round((suma / actIds.length) * 10) / 10 : null;
-      return { ...est, promedio };
+      const sumaPonderada = actividades.reduce((s, a) => {
+        const nota = est.notas[a.id];
+        return s + (nota !== undefined ? nota : 0) * parseFloat(a.porcentaje || 0);
+      }, 0);
+      const promedio_actividades = actIds.length ? Math.round((sumaPonderada / 100) * 10) / 10 : null;
+
+      const comp = componentesMap[est.id] || {};
+      let nota_final = null;
+      if (porcentajeCompleto) {
+        nota_final = Math.round((
+          promedio_actividades * PESO_ACTIVIDADES +
+          (comp.autoevaluacion || 0) * PESOS_COMPONENTE.autoevaluacion +
+          (comp.coevaluacion || 0) * PESOS_COMPONENTE.coevaluacion +
+          (comp.heteroevaluacion || 0) * PESOS_COMPONENTE.heteroevaluacion
+        ) * 10) / 10;
+      }
+
+      return {
+        ...est,
+        promedio_actividades,
+        componentes: {
+          autoevaluacion: comp.autoevaluacion ?? null,
+          coevaluacion: comp.coevaluacion ?? null,
+          heteroevaluacion: comp.heteroevaluacion ?? null,
+        },
+        nota_final,
+      };
     });
 
     // Promedio por actividad — mismo criterio, pero dividido entre el total de
-    // estudiantes del grupo (no solo los que la entregaron).
+    // estudiantes del grupo (no solo los que la entregaron). Es solo un dato
+    // descriptivo por columna, no interviene en la nota final.
     const actividadesConPromedio = actividades.map(act => {
       const notasAct = listaEstudiantes
         .map(est => est.notas[act.id])
@@ -730,13 +861,64 @@ async function libroCalificaciones(req, res) {
       const promedio_actividad = totalEstudiantesGrupo
         ? Math.round((suma / totalEstudiantesGrupo) * 10) / 10
         : null;
-      return { ...act, promedio_actividad };
+      return { ...act, porcentaje: parseFloat(act.porcentaje), promedio_actividad };
     });
 
-    res.json({ data: { actividades: actividadesConPromedio, estudiantes } });
+    res.json({ data: { actividades: actividadesConPromedio, estudiantes, sumaPorcentaje, porcentajeCompleto } });
   } catch (err) {
     console.error('Error en libroCalificaciones:', err);
     res.status(500).json({ error: 'Error al obtener el libro de calificaciones' });
+  }
+}
+
+// GET /api/actividades/componentes?grupo_id=X&materia_id=Y&periodo=Z&tipo=autoevaluacion
+// Notas ya guardadas de un componente específico, por estudiante.
+async function getComponentes(req, res) {
+  const { grupo_id, materia_id, periodo, tipo } = req.query;
+  if (!grupo_id || !materia_id || !periodo || !TIPOS_COMPONENTE.includes(tipo)) {
+    return res.status(400).json({ error: 'Faltan parámetros: grupo_id, materia_id, periodo, tipo válido' });
+  }
+  try {
+    const [filas] = await db.query(`
+      SELECT estudiante_id, nota FROM componentes_evaluacion
+      WHERE grupo_id = ? AND materia_id = ? AND periodo = ? AND tipo = ?
+    `, [grupo_id, materia_id, periodo, tipo]);
+    res.json({ data: filas.map(f => ({ estudiante_id: f.estudiante_id, nota: parseFloat(f.nota) })) });
+  } catch (err) {
+    console.error('Error en getComponentes:', err);
+    res.status(500).json({ error: 'Error al obtener el componente' });
+  }
+}
+
+// POST /api/actividades/componentes
+// body: { grupo_id, materia_id, periodo, tipo, calificaciones: [{estudiante_id, nota}] }
+async function guardarComponentes(req, res) {
+  const { grupo_id, materia_id, periodo, tipo, calificaciones } = req.body;
+  if (!grupo_id || !materia_id || !periodo || !TIPOS_COMPONENTE.includes(tipo) || !Array.isArray(calificaciones)) {
+    return res.status(400).json({ error: 'Faltan campos: grupo_id, materia_id, periodo, tipo válido, calificaciones' });
+  }
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const c of calificaciones) {
+      if (c.nota === null || c.nota === undefined || c.nota === '') continue;
+      const nota = parseFloat(c.nota);
+      if (isNaN(nota) || nota < 1.0 || nota > 5.0) continue;
+      await conn.query(
+        `INSERT INTO componentes_evaluacion (estudiante_id, materia_id, grupo_id, periodo, tipo, nota)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE nota = VALUES(nota)`,
+        [c.estudiante_id, materia_id, grupo_id, periodo, tipo, parseFloat(nota.toFixed(1))]
+      );
+    }
+    await conn.commit();
+    res.json({ mensaje: 'Calificaciones guardadas' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Error en guardarComponentes:', err);
+    res.status(500).json({ error: 'Error al guardar las calificaciones' });
+  } finally {
+    conn.release();
   }
 }
 
@@ -910,7 +1092,7 @@ async function listarBanco(req, res) {
 // POST /api/actividades/:id/copiar — copia una actividad al docente autenticado
 async function copiarDelBanco(req, res) {
   const { id } = req.params;
-  const { grupo_id, periodo } = req.body;
+  const { grupo_id, periodo, porcentaje } = req.body;
   const docenteId = req.usuario.id;
   const colegioId = req.usuario.colegio_id;
 
@@ -933,10 +1115,13 @@ async function copiarDelBanco(req, res) {
     );
     if (!original) return res.status(404).json({ error: 'Actividad no encontrada' });
 
+    const errorPorcentaje = await validarPorcentaje(porcentaje, grupo_id, original.materia_id, periodo);
+    if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
+
     const [result] = await db.query(`
       INSERT INTO actividades
-        (titulo, tipo, descripcion, contenido, docente_id, materia_id, grupo_id, periodo, intentos_permitidos, tiempo_limite_minutos, activa)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)
+        (titulo, tipo, descripcion, contenido, docente_id, materia_id, grupo_id, periodo, porcentaje, intentos_permitidos, tiempo_limite_minutos, activa)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)
     `, [
       `${original.titulo} (copia)`,
       original.tipo,
@@ -946,6 +1131,7 @@ async function copiarDelBanco(req, res) {
       original.materia_id,
       grupo_id,
       periodo,
+      parseFloat(porcentaje),
       original.intentos_permitidos || 1,
       original.tiempo_limite_minutos,
     ]);
@@ -974,4 +1160,7 @@ module.exports = {
   listarBanco,
   copiarDelBanco,
   generarRecuperacion,
+  porcentajeDisponible,
+  getComponentes,
+  guardarComponentes,
 };

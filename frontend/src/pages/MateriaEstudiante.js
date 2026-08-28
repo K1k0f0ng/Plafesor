@@ -10,6 +10,11 @@ const ETIQUETA_TIPO = {
   ordenar_pasos:      'Ordenar pasos',
   completar_espacios: 'Completar espacios',
   relacionar_columnas:'Relacionar columnas',
+  ordenar_letras:     'Ordenar letras',
+  ordenar_palabras:   'Ordenar palabras',
+  sopa_letras:        'Sopa de letras',
+  entrega_archivo:    'Entrega de trabajo',
+  manual:             'Calificación manual',
 };
 
 function nivelNota(nota) {

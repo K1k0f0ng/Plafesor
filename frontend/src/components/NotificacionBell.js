@@ -27,7 +27,7 @@ export default function NotificacionBell() {
 
   const cargar = useCallback(async () => {
     try {
-      const { data } = await axiosAuth.get('/notificaciones');
+      const { data } = await axiosAuth.get('/api/notificaciones');
       setNotifs(data.data  || []);
       setSinLeer(data.sinLeer || 0);
     } catch {
@@ -51,7 +51,7 @@ export default function NotificacionBell() {
 
   async function marcarTodas() {
     try {
-      await axiosAuth.patch('/notificaciones/leer-todas');
+      await axiosAuth.patch('/api/notificaciones/leer-todas');
       setNotifs(prev => prev.map(n => ({ ...n, leida: true })));
       setSinLeer(0);
     } catch { /* silencioso */ }
@@ -59,7 +59,7 @@ export default function NotificacionBell() {
 
   async function marcarUna(id) {
     try {
-      await axiosAuth.patch(`/notificaciones/${id}/leer`);
+      await axiosAuth.patch(`/api/notificaciones/${id}/leer`);
       setNotifs(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
       setSinLeer(prev => Math.max(0, prev - 1));
     } catch { /* silencioso */ }

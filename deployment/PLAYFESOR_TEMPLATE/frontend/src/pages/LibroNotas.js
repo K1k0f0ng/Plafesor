@@ -4,8 +4,15 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconBookOpen, IconDownload, IconEdit } from '../components/Icons';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const PERIODOS = [1, 2, 3, 4];
+
+const COMPONENTES = [
+  { tipo: 'autoevaluacion',   etiqueta: 'Autoevaluación',   peso: 5,  color: '#8e24aa' },
+  { tipo: 'coevaluacion',     etiqueta: 'Coevaluación',     peso: 5,  color: '#00897b' },
+  { tipo: 'heteroevaluacion', etiqueta: 'Heteroevaluación', peso: 10, color: '#3949ab' },
+];
 
 function colorNota(nota) {
   if (nota === null || nota === undefined) return { bg: '#f5f5f5', text: '#bbb' };
@@ -41,9 +48,15 @@ export default function LibroNotas() {
   // Panel calificación manual
   const [panelAbierto, setPanelAbierto] = useState(false);
   const [tituloEval,   setTituloEval]   = useState('');
+  const [porcentajeEval, setPorcentajeEval] = useState('');
   const [notasManual,  setNotasManual]  = useState({});
   const [guardando,    setGuardando]    = useState(false);
   const [mensajeOk,    setMensajeOk]   = useState('');
+
+  // Panel de componente (Autoevaluación / Coevaluación / Heteroevaluación)
+  const [panelComponente,   setPanelComponente]   = useState(null); // tipo o null
+  const [notasComponente,   setNotasComponente]   = useState({});
+  const [guardandoComponente, setGuardandoComponente] = useState(false);
 
   const esDocente = usuario?.rol === 'docente';
 
@@ -81,25 +94,32 @@ export default function LibroNotas() {
     (libro?.estudiantes || []).forEach(e => { init[e.id] = ''; });
     setNotasManual(init);
     setTituloEval('');
+    setPorcentajeEval('');
     setMensajeOk('');
     setPanelAbierto(true);
   }
 
   async function guardarCalificaciones() {
     if (!tituloEval.trim()) return;
+    const porcentajeNum = parseFloat(porcentajeEval);
+    if (porcentajeEval === '' || isNaN(porcentajeNum) || porcentajeNum <= 0 || porcentajeNum > 100) {
+      setError('Indica un porcentaje válido para esta evaluación (mayor a 0 y máximo 100)');
+      return;
+    }
     const calificaciones = Object.entries(notasManual)
       .filter(([, n]) => n !== '' && n !== null)
       .map(([id, nota]) => ({ estudiante_id: parseInt(id), nota: parseFloat(nota) }));
 
     if (calificaciones.length === 0) return;
 
-    setGuardando(true);
+    setGuardando(true); setError('');
     try {
       await axiosAuth.post('/api/actividades/calificar-manual', {
         titulo: tituloEval.trim(),
         grupo_id: parseInt(grupoId),
         materia_id: parseInt(materiaId),
         periodo: parseInt(periodo),
+        porcentaje: porcentajeNum,
         calificaciones,
       });
       setMensajeOk(`"${tituloEval}" guardada con ${calificaciones.length} notas`);
@@ -112,19 +132,67 @@ export default function LibroNotas() {
     }
   }
 
+  function abrirPanelComponente(tipo) {
+    const init = {};
+    (libro?.estudiantes || []).forEach(e => {
+      const actual = e.componentes?.[tipo];
+      init[e.id] = actual !== null && actual !== undefined ? String(actual) : '';
+    });
+    setNotasComponente(init);
+    setMensajeOk('');
+    setPanelComponente(tipo);
+  }
+
+  async function guardarComponente() {
+    const calificaciones = Object.entries(notasComponente)
+      .filter(([, n]) => n !== '' && n !== null)
+      .map(([id, nota]) => ({ estudiante_id: parseInt(id), nota: parseFloat(nota) }));
+    if (calificaciones.length === 0) return;
+
+    setGuardandoComponente(true); setError('');
+    try {
+      await axiosAuth.post('/api/actividades/componentes', {
+        grupo_id: parseInt(grupoId),
+        materia_id: parseInt(materiaId),
+        periodo: parseInt(periodo),
+        tipo: panelComponente,
+        calificaciones,
+      });
+      const etiqueta = COMPONENTES.find(c => c.tipo === panelComponente)?.etiqueta || panelComponente;
+      setMensajeOk(`${etiqueta} guardada con ${calificaciones.length} notas`);
+      setPanelComponente(null);
+      await cargarLibro();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar las calificaciones');
+    } finally {
+      setGuardandoComponente(false);
+    }
+  }
+
   function exportarExcel() {
     if (!libro) return;
     const grupoNombre   = grupos.find(g => g.id === parseInt(grupoId))?.nombre || grupoId;
     const materiaNombre = materias.find(m => m.id === parseInt(materiaId))?.nombre || materiaId;
-    const encabezados   = ['Estudiante', ...libro.actividades.map(a => a.titulo), 'Promedio'];
-    const filas         = libro.estudiantes.map(est => [
-      est.nombre,
+    const encabezados   = [
+      'Estudiante',
+      ...libro.actividades.map(a => `${a.titulo} (${a.porcentaje}%)`),
+      'Actividades (80%)',
+      ...COMPONENTES.map(c => `${c.etiqueta} (${c.peso}%)`),
+      'Nota final',
+    ];
+    const filas = libro.estudiantes.map(est => [
+      formatearApellidoPrimero(est.nombre),
       ...libro.actividades.map(a => est.notas[a.id] ?? ''),
-      est.promedio ?? '',
+      est.promedio_actividades ?? '',
+      ...COMPONENTES.map(c => est.componentes?.[c.tipo] ?? ''),
+      est.nota_final ?? (libro.porcentajeCompleto ? '' : 'Pendiente'),
     ]);
-    const filaPromedio  = ['Promedio actividad', ...libro.actividades.map(a => a.promedio_actividad ?? ''), ''];
+    const filaPromedio = [
+      'Promedio actividad', ...libro.actividades.map(a => a.promedio_actividad ?? ''),
+      '', ...COMPONENTES.map(() => ''), '',
+    ];
     const ws = XLSX.utils.aoa_to_sheet([encabezados, ...filas, filaPromedio]);
-    ws['!cols'] = [{ wch: 28 }, ...libro.actividades.map(() => ({ wch: 16 })), { wch: 12 }];
+    ws['!cols'] = [{ wch: 28 }, ...libro.actividades.map(() => ({ wch: 18 })), { wch: 16 }, ...COMPONENTES.map(() => ({ wch: 18 })), { wch: 12 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Calificaciones');
     XLSX.writeFile(wb, `Notas_${materiaNombre}_${grupoNombre}_P${periodo}.xlsx`);
@@ -138,7 +206,7 @@ export default function LibroNotas() {
   const sinEntregas     = libro ? libro.estudiantes.filter(e => Object.keys(e.notas).length === 0).length : 0;
   const promedioGrupal  = libro
     ? (() => {
-        const vals = libro.estudiantes.map(e => e.promedio).filter(n => n !== null);
+        const vals = libro.estudiantes.map(e => e.nota_final).filter(n => n !== null && n !== undefined);
         return vals.length ? Math.round((vals.reduce((s, n) => s + n, 0) / vals.length) * 10) / 10 : null;
       })()
     : null;
@@ -173,6 +241,15 @@ export default function LibroNotas() {
                 autoFocus
               />
 
+              <label style={{ ...es.label, marginTop: '14px', display: 'block' }}>Porcentaje dentro del período (%) *</label>
+              <input
+                type="number" min="1" max="100" step="1"
+                style={es.inputEval}
+                placeholder="Ej: 25"
+                value={porcentajeEval}
+                onChange={e => setPorcentajeEval(e.target.value)}
+              />
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 8px' }}>
                 <label style={es.label}>Notas (escala 1.0 – 5.0)</label>
                 <button
@@ -190,7 +267,7 @@ export default function LibroNotas() {
               <div style={es.listaEstudiantes}>
                 {(libro?.estudiantes || []).map(est => (
                   <div key={est.id} style={es.filaEst}>
-                    <span style={es.nombreEst}>{est.nombre}</span>
+                    <span style={es.nombreEst}>{formatearApellidoPrimero(est.nombre)}</span>
                     <input
                       type="number"
                       min="1" max="5" step="0.1"
@@ -216,9 +293,9 @@ export default function LibroNotas() {
               <button
                 style={{
                   ...es.btnGuardar,
-                  opacity: (!tituloEval.trim() || Object.values(notasManual).every(n => n === '') || guardando) ? 0.5 : 1,
+                  opacity: (!tituloEval.trim() || !porcentajeEval || Object.values(notasManual).every(n => n === '') || guardando) ? 0.5 : 1,
                 }}
-                disabled={!tituloEval.trim() || Object.values(notasManual).every(n => n === '') || guardando}
+                disabled={!tituloEval.trim() || !porcentajeEval || Object.values(notasManual).every(n => n === '') || guardando}
                 onClick={guardarCalificaciones}
               >
                 {guardando ? 'Guardando...' : 'Guardar calificaciones'}
@@ -227,6 +304,68 @@ export default function LibroNotas() {
           </div>
         </>
       )}
+
+      {/* Overlay + Panel lateral de componente (Autoevaluación/Coevaluación/Heteroevaluación) */}
+      {panelComponente && (() => {
+        const comp = COMPONENTES.find(c => c.tipo === panelComponente);
+        return (
+          <>
+            <div
+              onClick={() => setPanelComponente(null)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)', zIndex: 100 }}
+            />
+            <div style={es.panel}>
+              <div style={{ ...es.panelHeader, background: `linear-gradient(135deg, ${comp.color}, ${comp.color}cc)` }}>
+                <div>
+                  <div style={es.panelTitulo}>{comp.etiqueta} ({comp.peso}% de la nota final)</div>
+                  <div style={es.panelSub}>{materiaSel?.nombre} · {grupoSel?.grado} {grupoSel?.nombre} · P{periodo}</div>
+                </div>
+                <button style={es.panelClose} onClick={() => setPanelComponente(null)}>✕</button>
+              </div>
+
+              <div style={{ padding: '20px' }}>
+                <label style={es.label}>Notas (escala 1.0 – 5.0)</label>
+                <div style={{ ...es.listaEstudiantes, marginTop: '8px' }}>
+                  {(libro?.estudiantes || []).map(est => (
+                    <div key={est.id} style={es.filaEst}>
+                      <span style={es.nombreEst}>{formatearApellidoPrimero(est.nombre)}</span>
+                      <input
+                        type="number"
+                        min="1" max="5" step="0.1"
+                        placeholder="—"
+                        value={notasComponente[est.id] ?? ''}
+                        onChange={e => setNotasComponente(prev => ({ ...prev, [est.id]: e.target.value }))}
+                        style={{
+                          ...es.inputNota,
+                          ...(notasComponente[est.id] !== '' ? colorNota(parseFloat(notasComponente[est.id])) : {}),
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
+                  {Object.values(notasComponente).filter(n => n !== '').length} de {totalEstudiantes} notas ingresadas
+                </div>
+              </div>
+
+              <div style={es.panelFooter}>
+                <button style={es.btnCancelar} onClick={() => setPanelComponente(null)}>Cancelar</button>
+                <button
+                  style={{
+                    ...es.btnGuardar,
+                    background: `linear-gradient(135deg, ${comp.color}, ${comp.color}cc)`,
+                    opacity: (Object.values(notasComponente).every(n => n === '') || guardandoComponente) ? 0.5 : 1,
+                  }}
+                  disabled={Object.values(notasComponente).every(n => n === '') || guardandoComponente}
+                  onClick={guardarComponente}
+                >
+                  {guardandoComponente ? 'Guardando...' : 'Guardar calificaciones'}
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       <div style={{ padding: '28px', flex: 1 }}>
 
@@ -326,6 +465,27 @@ export default function LibroNotas() {
               ))}
             </div>
 
+            {libro.actividades.length > 0 && (
+              <div style={{ ...es.avisoPorcentaje, ...(libro.porcentajeCompleto ? es.avisoOk : es.avisoPendiente) }}>
+                {libro.porcentajeCompleto
+                  ? `✓ Los porcentajes de las actividades suman 100% — la nota final ya se calcula.`
+                  : `Los porcentajes de las actividades suman ${libro.sumaPorcentaje}% (deben sumar 100% para calcular la nota final). Ajusta los porcentajes desde "Crear actividad".`}
+              </div>
+            )}
+
+            <div style={{ ...es.leyenda, marginTop: 0 }}>
+              {COMPONENTES.map(c => (
+                <button
+                  key={c.tipo}
+                  onClick={() => abrirPanelComponente(c.tipo)}
+                  style={{ ...es.btnComponente, borderColor: c.color, color: c.color }}
+                  title={`Ingresar/editar ${c.etiqueta.toLowerCase()}`}
+                >
+                  <IconEdit size={12} />{c.etiqueta} ({c.peso}%)
+                </button>
+              ))}
+            </div>
+
             {libro.actividades.length === 0 ? (
               <div style={es.vacio}>
                 <p style={{ color: '#aaa' }}>
@@ -342,27 +502,46 @@ export default function LibroNotas() {
                       {libro.actividades.map(a => (
                         <th key={a.id} style={es.thAct} title={a.titulo}>
                           <div style={es.thActTexto}>{a.titulo}</div>
-                          <div style={es.thActSub}>{a.total_completadas}/{totalEstudiantes}</div>
+                          <div style={es.thActSub}>{a.porcentaje}% · {a.total_completadas}/{totalEstudiantes}</div>
                         </th>
                       ))}
-                      <th style={{ ...es.thAct, background: '#f3f4ff', color: 'var(--color-primario)' }}>Promedio</th>
+                      <th style={{ ...es.thAct, background: '#f3f4ff', color: 'var(--color-primario)' }}>Actividades (80%)</th>
+                      {COMPONENTES.map(c => (
+                        <th
+                          key={c.tipo}
+                          style={{ ...es.thAct, background: `${c.color}15`, color: c.color, cursor: 'pointer' }}
+                          onClick={() => abrirPanelComponente(c.tipo)}
+                          title={`Clic para ingresar/editar ${c.etiqueta.toLowerCase()}`}
+                        >
+                          {c.etiqueta} ({c.peso}%)
+                        </th>
+                      ))}
+                      <th style={{ ...es.thAct, background: 'var(--color-primario)', color: '#fff' }}>Nota final</th>
                     </tr>
                   </thead>
                   <tbody>
                     {libro.estudiantes.map(est => (
                       <tr key={est.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                        <td style={es.tdFijo}>{est.nombre}</td>
+                        <td style={es.tdFijo}>{formatearApellidoPrimero(est.nombre)}</td>
                         {libro.actividades.map(a => (
                           <td key={a.id} style={es.tdCentro}>
                             <CeldaNota nota={est.notas[a.id] ?? null} />
                           </td>
                         ))}
                         <td style={es.tdCentro}>
+                          <CeldaNota nota={est.promedio_actividades} />
+                        </td>
+                        {COMPONENTES.map(c => (
+                          <td key={c.tipo} style={es.tdCentro}>
+                            <CeldaNota nota={est.componentes?.[c.tipo] ?? null} />
+                          </td>
+                        ))}
+                        <td style={es.tdCentro}>
                           <div style={{
-                            ...colorNota(est.promedio), fontWeight: '800', fontSize: '14px',
+                            ...colorNota(est.nota_final), fontWeight: '800', fontSize: '14px',
                             textAlign: 'center', padding: '6px 4px', borderRadius: '6px', minWidth: '46px',
                           }}>
-                            {est.promedio ?? '—'}
+                            {est.nota_final ?? (libro.porcentajeCompleto ? '—' : 'Pendiente')}
                           </div>
                         </td>
                       </tr>
@@ -376,6 +555,8 @@ export default function LibroNotas() {
                           <CeldaNota nota={a.promedio_actividad} />
                         </td>
                       ))}
+                      <td style={es.tdCentro} />
+                      {COMPONENTES.map(c => <td key={c.tipo} style={es.tdCentro} />)}
                       <td style={es.tdCentro}>
                         <div style={{
                           ...colorNota(promedioGrupal), fontWeight: '800', fontSize: '14px',
@@ -417,6 +598,10 @@ const es = {
   statLabel:    { display: 'block', fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '2px' },
   leyenda:      { display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' },
   leyendaItem:  { fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '20px' },
+  avisoPorcentaje: { borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: '600', marginBottom: '14px' },
+  avisoOk:      { background: '#e8f5e9', color: '#2e7d32', border: '1px solid #a5d6a7' },
+  avisoPendiente: { background: '#fff8e1', color: '#e65100', border: '1px solid #ffe082' },
+  btnComponente: { background: '#fff', border: '1.5px solid', borderRadius: '20px', padding: '5px 12px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '6px' },
   tablaWrapper: { overflowX: 'auto', background: '#fff', borderRadius: '12px', border: '1px solid #eeeff3', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
   tabla:        { borderCollapse: 'collapse', minWidth: '100%' },
   thFijo:       { padding: '12px 16px', fontSize: '12px', fontWeight: '700', color: '#555', background: '#fafafa', borderBottom: '2px solid #eeeff3', borderRight: '2px solid #eeeff3', textAlign: 'left', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 2, minWidth: '200px' },

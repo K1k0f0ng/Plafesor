@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   rol ENUM('admin','docente','estudiante','director','padre') NOT NULL,
   colegio_id INT,
   telefono_padres VARCHAR(20),
+  requiere_piar BOOLEAN DEFAULT FALSE,
+  foto_url VARCHAR(255) NULL,
   -- Identificación (usada por estudiante y padre; el resto de roles la ignora)
   tipo_documento ENUM('RC','TI','CC','CE') NULL,
   numero_documento VARCHAR(30) NULL,
@@ -192,6 +194,12 @@ CREATE TABLE IF NOT EXISTS actividades (
   materia_id INT NOT NULL,
   grupo_id INT NOT NULL,
   periodo ENUM('1','2','3','4') NOT NULL,
+  -- Peso de esta actividad en el 80% de "actividades" de la nota final de la
+  -- materia (ver componentes_evaluacion). Los porcentajes de las actividades
+  -- de un mismo grupo+materia+período deben sumar 100 entre ellas.
+  porcentaje DECIMAL(5,2) NOT NULL DEFAULT 0,
+  fecha_inicio DATE NULL,
+  fecha_cierre DATE NULL,
   grado_minimo ENUM('5','6','7','8','9') NOT NULL,
   grado_maximo ENUM('5','6','7','8','9') NOT NULL,
   tiempo_limite_minutos INT DEFAULT 30,
@@ -223,6 +231,29 @@ CREATE TABLE IF NOT EXISTS resultados_actividades (
   completada_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (actividad_id) REFERENCES actividades(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: componentes_evaluacion
+-- Autoevaluación / coevaluación / heteroevaluación — una nota manual por
+-- estudiante, materia, grupo y período (casillas fijas del libro de notas,
+-- no son actividades). Junto con el promedio ponderado de actividades
+-- conforman la nota final: actividades 80%, autoeval. 5%, coeval. 5%,
+-- heteroeval. 10%.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS componentes_evaluacion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  estudiante_id INT NOT NULL,
+  materia_id INT NOT NULL,
+  grupo_id INT NOT NULL,
+  periodo ENUM('1','2','3','4') NOT NULL,
+  tipo ENUM('autoevaluacion','coevaluacion','heteroevaluacion') NOT NULL,
+  nota DECIMAL(3,1) NOT NULL,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_componente (estudiante_id, materia_id, grupo_id, periodo, tipo),
+  FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (materia_id) REFERENCES materias(id) ON DELETE CASCADE,
+  FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

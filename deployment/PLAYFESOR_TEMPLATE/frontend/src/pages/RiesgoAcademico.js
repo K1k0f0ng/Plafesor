@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { SemaforoDot, IconRefresh, IconClock, IconClipboard, IconAlertCircle } from '../components/Icons';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const NIVEL = {
   bajo:    { color: '#e8f5e9', texto: '#2e7d32', badge: '#4caf50', label: 'Bajo'    },
@@ -118,7 +119,7 @@ export default function RiesgoAcademico() {
 
   function copiarPMI() {
     if (!pmiTexto || !seleccionado) return;
-    const encabezado = `PLAN DE MEJORAMIENTO INDIVIDUAL\nEstudiante: ${seleccionado.nombre_estudiante}\nMateria: ${seleccionado.nombre_materia} — Grado ${seleccionado.grado}° ${seleccionado.nombre_grupo}\nFecha: ${new Date().toLocaleDateString('es-CO')}\n\n`;
+    const encabezado = `PLAN DE MEJORAMIENTO INDIVIDUAL\nEstudiante: ${formatearApellidoPrimero(seleccionado.nombre_estudiante)}\nMateria: ${seleccionado.nombre_materia} — Grado ${seleccionado.grado}° ${seleccionado.nombre_grupo}\nFecha: ${new Date().toLocaleDateString('es-CO')}\n\n`;
     navigator.clipboard.writeText(encabezado + pmiTexto);
   }
 
@@ -257,7 +258,7 @@ export default function RiesgoAcademico() {
                         <td style={{ ...es.td, textAlign: 'center' }}>
                           <span style={{ fontSize: '18px', fontWeight: '800', color: cfg.texto }}>{d.score}</span>
                         </td>
-                        <td style={{ ...es.td, fontWeight: '700', color: '#222' }}>{d.nombre_estudiante}</td>
+                        <td style={{ ...es.td, fontWeight: '700', color: '#222' }}>{formatearApellidoPrimero(d.nombre_estudiante)}</td>
                         <td style={es.td}>{d.nombre_materia}</td>
                         <td style={{ ...es.td, color: '#888' }}>G{d.grado}° {d.nombre_grupo}</td>
                         <td style={es.td}><MiniBar valor={factores.nota}       color="#ef5350" /></td>
@@ -286,7 +287,7 @@ export default function RiesgoAcademico() {
         const factores = typeof seleccionado.factores === 'string'
           ? JSON.parse(seleccionado.factores)
           : (seleccionado.factores || {});
-        const inicial  = seleccionado.nombre_estudiante?.charAt(0)?.toUpperCase() || '?';
+        const inicial  = formatearApellidoPrimero(seleccionado.nombre_estudiante)?.charAt(0)?.toUpperCase() || '?';
 
         return (
           <>
@@ -308,7 +309,7 @@ export default function RiesgoAcademico() {
                   {inicial}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={es.panelNombre}>{seleccionado.nombre_estudiante}</p>
+                  <p style={es.panelNombre}>{formatearApellidoPrimero(seleccionado.nombre_estudiante)}</p>
                   <p style={es.panelSub}>
                     {seleccionado.nombre_materia} · G{seleccionado.grado}° {seleccionado.nombre_grupo}
                   </p>

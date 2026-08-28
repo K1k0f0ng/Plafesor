@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconInbox } from '../components/Icons';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const ESTADOS = {
   pendiente:  { label: 'Pendiente',  color: '#e65100', bg: '#fff3e0' },
@@ -142,8 +143,8 @@ export default function Citaciones() {
               <div style={es.roster}>
                 {estudiantes.map(est => (
                   <button key={est.id} onClick={() => abrirPanel(est)} style={es.rosterItem}>
-                    <span style={es.rosterAvatar}>{est.nombre.charAt(0).toUpperCase()}</span>
-                    <span style={{ flex: 1, textAlign: 'left' }}>{est.nombre}</span>
+                    <span style={es.rosterAvatar}>{formatearApellidoPrimero(est.nombre).charAt(0).toUpperCase()}</span>
+                    <span style={{ flex: 1, textAlign: 'left' }}>{formatearApellidoPrimero(est.nombre)}</span>
                     {est.citaciones_pendientes > 0 && (
                       <span style={es.rosterBadge}>{est.citaciones_pendientes} pendiente{est.citaciones_pendientes > 1 ? 's' : ''}</span>
                     )}
@@ -161,7 +162,7 @@ export default function Citaciones() {
           <div style={es.panel}>
             <div style={es.panelHeader}>
               <div>
-                <div style={{ fontWeight: '800', fontSize: '15px' }}>{seleccionado.nombre}</div>
+                <div style={{ fontWeight: '800', fontSize: '15px' }}>{formatearApellidoPrimero(seleccionado.nombre)}</div>
                 <div style={{ fontSize: '12px', opacity: 0.85, marginTop: '2px' }}>Citaciones</div>
               </div>
               <button onClick={cerrarPanel} style={es.panelCerrar}>✕</button>

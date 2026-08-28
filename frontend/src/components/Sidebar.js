@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import axiosAuth from '../config/axios';
 import {
   IconHome, IconSchool, IconBookOpen, IconUsers, IconUser,
   IconBarChart, IconAlertCircle, IconZap, IconFileText,
   IconEdit, IconClipboard, IconCheckSquare, IconBot, IconLogOut,
-  IconCalendar, IconAccessibility, IconStar, IconMegaphone,
+  IconCalendar, IconAccessibility, IconStar, IconMegaphone, IconInbox,
 } from './Icons';
 import NotificacionBell from './NotificacionBell';
 
@@ -20,6 +21,7 @@ const MENU = {
     { tipo: 'link', Icono: IconFileText,   label: 'Materias',     ruta: '/materias' },
     { tipo: 'link', Icono: IconUsers,      label: 'Padres',       ruta: '/padres' },
     { tipo: 'seccion', label: 'Comunicación' },
+    { tipo: 'link', Icono: IconInbox,      label: 'Mensajería',      ruta: '/mensajeria', badge: 'mensajes' },
     { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',      ruta: '/citaciones' },
     { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos',ruta: '/mensajes-masivos' },
   ],
@@ -34,6 +36,7 @@ const MENU = {
     { tipo: 'seccion', label: 'Equipo Docente' },
     { tipo: 'link', Icono: IconStar,       label: 'Evaluación Docente', ruta: '/evaluacion-docentes' },
     { tipo: 'seccion', label: 'Comunicación' },
+    { tipo: 'link', Icono: IconInbox,      label: 'Mensajería',      ruta: '/mensajeria', badge: 'mensajes' },
     { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',      ruta: '/citaciones' },
     { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos',ruta: '/mensajes-masivos' },
     { tipo: 'seccion', label: 'Reportes' },
@@ -53,9 +56,10 @@ const MENU = {
     { tipo: 'link', Icono: IconFileText,   label: 'Boletines',      ruta: '/boletin' },
     { tipo: 'link', Icono: IconBookOpen,   label: 'Libro de Notas', ruta: '/libro-notas' },
     { tipo: 'link', Icono: IconAccessibility, label: 'PIAR',         ruta: '/piar' },
+    { tipo: 'seccion', label: 'Comunicación' },
+    { tipo: 'link', Icono: IconInbox,      label: 'Mensajería',      ruta: '/mensajeria', badge: 'mensajes' },
     // Los dos siguientes solo se muestran si el docente dirige un grupo —
     // se filtran en tiempoReal más abajo con `soloDirectorGrupo: true`
-    { tipo: 'seccion', label: 'Comunicación', soloDirectorGrupo: true },
     { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',       ruta: '/citaciones',       soloDirectorGrupo: true },
     { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos', ruta: '/mensajes-masivos', soloDirectorGrupo: true },
   ],
@@ -64,7 +68,9 @@ const MENU = {
     { tipo: 'link', Icono: IconBot,        label: 'Tutor IA',     ruta: '/tutor' },
   ],
   padre: [
-    { tipo: 'link', Icono: IconUser,       label: 'Mi Hijo/a', ruta: '/dashboard-padre' },
+    { tipo: 'link', Icono: IconUser,       label: 'Mi Hijo/a',  ruta: '/dashboard-padre' },
+    { tipo: 'seccion', label: 'Comunicación' },
+    { tipo: 'link', Icono: IconInbox,      label: 'Mensajería', ruta: '/mensajeria', badge: 'mensajes' },
   ],
 };
 
@@ -83,6 +89,21 @@ export default function Sidebar() {
   const menuRol   = MENU[usuario?.rol] || [];
   const menu      = usuario?.grupo_dirigido_id ? menuRol : menuRol.filter(item => !item.soloDirectorGrupo);
   const inicial   = usuario?.nombre?.charAt(0)?.toUpperCase() || '?';
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+
+  const cargarNoLeidos = useCallback(async () => {
+    try {
+      const { data } = await axiosAuth.get('/api/mensajes/no-leidos');
+      setMensajesNoLeidos(data.data?.total || 0);
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => {
+    if (!['admin', 'director', 'docente', 'padre'].includes(usuario?.rol)) return;
+    cargarNoLeidos();
+    const id = setInterval(cargarNoLeidos, 60_000);
+    return () => clearInterval(id);
+  }, [usuario?.rol, cargarNoLeidos]);
 
   function handleLogout() {
     cerrarSesion();
@@ -118,6 +139,9 @@ export default function Sidebar() {
                 {Icono && <Icono size={17} />}
               </span>
               <span style={es.linkLabel}>{item.label}</span>
+              {item.badge === 'mensajes' && mensajesNoLeidos > 0 && (
+                <span style={es.badgeMensajes}>{mensajesNoLeidos > 9 ? '9+' : mensajesNoLeidos}</span>
+              )}
               {activo && <span style={es.activoDot} />}
             </button>
           );
@@ -206,6 +230,10 @@ const es = {
   activoDot: {
     width: '5px', height: '5px', borderRadius: '50%',
     background: '#667eea', flexShrink: 0,
+  },
+  badgeMensajes: {
+    background: '#e53935', color: '#fff', fontSize: '10px', fontWeight: '800',
+    borderRadius: '10px', padding: '1px 6px', lineHeight: '1.5', flexShrink: 0,
   },
   userArea: {
     padding: '12px 12px 16px',

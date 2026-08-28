@@ -5,7 +5,7 @@ import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import {
   IconCheckSquare, IconCheck, IconList, IconEdit, IconLink,
-  IconGrid, IconFileText, IconBarChart, IconZap, IconRefresh,
+  IconGrid, IconFileText, IconBarChart, IconZap, IconRefresh, IconClipboard,
 } from '../components/Icons';
 
 const TIPOS = [
@@ -17,6 +17,18 @@ const TIPOS = [
   { valor: 'ordenar_letras',     Icono: IconGrid,        etiqueta: 'Ordenar letras',    desc: 'Arma la palabra letra a letra' },
   { valor: 'ordenar_palabras',   Icono: IconFileText,    etiqueta: 'Ordenar palabras',  desc: 'Arma la oración palabra a palabra' },
   { valor: 'sopa_letras',        Icono: IconBarChart,    etiqueta: 'Sopa de letras',    desc: 'Encuentra las palabras en la cuadrícula' },
+  { valor: 'entrega_archivo',    Icono: IconClipboard,   etiqueta: 'Entrega de trabajo',desc: 'El estudiante sube un archivo (PDF, Word, PPT, Excel, imagen) y tú lo calificas' },
+];
+
+const CATEGORIAS_ENTREGA = [
+  { valor: '',                 etiqueta: 'Sin categoría específica' },
+  { valor: 'prueba',           etiqueta: 'Prueba escrita u oral' },
+  { valor: 'proyecto',         etiqueta: 'Proyecto de aula' },
+  { valor: 'laboratorio',      etiqueta: 'Laboratorio / experimento' },
+  { valor: 'exposicion',       etiqueta: 'Exposición o debate' },
+  { valor: 'produccion',       etiqueta: 'Producción de texto o maqueta' },
+  { valor: 'mapa_conceptual',  etiqueta: 'Mapa conceptual o mental' },
+  { valor: 'taller',           etiqueta: 'Taller de comprensión' },
 ];
 
 // ─── Componente de imagen ────────────────────────────────────────────────────
@@ -411,6 +423,26 @@ function EditorSopaLetras({ contenido, onChange }) {
   );
 }
 
+function EditorEntregaArchivo({ contenido, onChange }) {
+  const c = contenido || { instrucciones: '', categoria: '' };
+  return (
+    <div style={ed.bloque}>
+      <label style={ed.label}>Instrucciones para el estudiante *</label>
+      <textarea value={c.instrucciones} onChange={e => onChange({ ...c, instrucciones: e.target.value })}
+        placeholder="Ej: Sube tu informe de laboratorio en PDF, con introducción, procedimiento, resultados y conclusión."
+        style={ed.textarea} rows={4} required />
+      <label style={{ ...ed.label, marginTop: 10 }}>Categoría (opcional, solo informativa)</label>
+      <select value={c.categoria || ''} onChange={e => onChange({ ...c, categoria: e.target.value })} style={ed.selectPequeno}>
+        {CATEGORIAS_ENTREGA.map(cat => <option key={cat.valor} value={cat.valor}>{cat.etiqueta}</option>)}
+      </select>
+      <p style={ed.ayuda}>
+        El estudiante podrá subir un archivo PDF, Word, PowerPoint, Excel o imagen (máx. 15 MB).
+        Tú revisas y calificas cada entrega manualmente desde "Mis actividades".
+      </p>
+    </div>
+  );
+}
+
 // ─── Componente principal ────────────────────────────────────────────────────
 
 export default function CrearActividad() {
@@ -426,9 +458,11 @@ export default function CrearActividad() {
   const [exito, setExito] = useState('');
   const [meta, setMeta] = useState({
     titulo: '', descripcion: '', tipo: 'opcion_multiple',
-    materia_id: '', grupo_id: '', periodo: '',
+    materia_id: '', grupo_id: '', periodo: '', porcentaje: '',
+    fecha_inicio: '', fecha_cierre: '',
     tiempo_limite_minutos: 30, intentos_permitidos: 3,
   });
+  const [porcentajeInfo, setPorcentajeInfo] = useState(null); // { usado, disponible }
   const [contenido, setContenido] = useState(null);
   const [mostrarIA, setMostrarIA] = useState(false);
   const [iaForm, setIAForm] = useState({ tema: '', n_preguntas: '5' });
@@ -463,6 +497,9 @@ export default function CrearActividad() {
             materia_id: String(act.materia_id),
             grupo_id: String(act.grupo_id),
             periodo: String(act.periodo),
+            porcentaje: act.porcentaje !== undefined && act.porcentaje !== null ? String(act.porcentaje) : '',
+            fecha_inicio: act.fecha_inicio ? String(act.fecha_inicio).slice(0, 10) : '',
+            fecha_cierre: act.fecha_cierre ? String(act.fecha_cierre).slice(0, 10) : '',
             tiempo_limite_minutos: act.tiempo_limite_minutos,
             intentos_permitidos: act.intentos_permitidos,
           });
@@ -476,6 +513,15 @@ export default function CrearActividad() {
     }
     cargar();
   }, [usuario.id, usuario.colegio_id, actividadId, modoEdicion]);
+
+  useEffect(() => {
+    if (!meta.grupo_id || !meta.materia_id || !meta.periodo) { setPorcentajeInfo(null); return; }
+    const params = new URLSearchParams({ grupo_id: meta.grupo_id, materia_id: meta.materia_id, periodo: meta.periodo });
+    if (modoEdicion) params.set('excluir_id', actividadId);
+    axiosAuth.get(`/api/actividades/porcentaje-disponible?${params}`)
+      .then(r => setPorcentajeInfo(r.data.data))
+      .catch(() => setPorcentajeInfo(null));
+  }, [meta.grupo_id, meta.materia_id, meta.periodo, modoEdicion, actividadId]);
 
   function cambiarTipo(tipo) { setMeta(prev => ({ ...prev, tipo })); setContenido(null); setMensajeIA(''); }
 
@@ -512,7 +558,14 @@ export default function CrearActividad() {
     if (!contenido) return setError('Debes completar el contenido de la actividad');
     if (!meta.grupo_id || !meta.materia_id) return setError('Selecciona grupo y materia');
     if (!meta.periodo) return setError('Debes seleccionar el período académico');
+    const porcentajeNum = parseFloat(meta.porcentaje);
+    if (meta.porcentaje === '' || isNaN(porcentajeNum)) return setError('Debes indicar el porcentaje de la actividad');
+    if (porcentajeNum <= 0 || porcentajeNum > 100) return setError('El porcentaje debe ser mayor a 0 y no puede superar 100');
+    if (porcentajeInfo && porcentajeNum > porcentajeInfo.disponible + 0.001) {
+      return setError(`La suma de porcentajes superaría el 100% — disponible: ${porcentajeInfo.disponible}%`);
+    }
     if (meta.tipo === 'sopa_letras' && !contenido.grid) return setError('Debes generar la sopa de letras antes de guardar');
+    if (meta.tipo === 'entrega_archivo' && !contenido.instrucciones?.trim()) return setError('Debes escribir las instrucciones de la entrega');
     setGuardando(true);
     try {
       if (modoEdicion) {
@@ -587,22 +640,47 @@ export default function CrearActividad() {
                 )}
               </div>
               <div style={es.grupo}>
-                <label style={es.label}>Tiempo límite (min)</label>
-                <input type="number" min={5} max={120} value={meta.tiempo_limite_minutos}
-                  onChange={e => setMeta({ ...meta, tiempo_limite_minutos: parseInt(e.target.value) })} style={es.input} />
+                <label style={es.label}>Porcentaje de la actividad (%) *</label>
+                <input type="number" min="1" max="100" step="1" value={meta.porcentaje}
+                  onChange={e => setMeta({ ...meta, porcentaje: e.target.value })}
+                  placeholder="Ej: 25" style={es.input} required />
+                {porcentajeInfo && (
+                  <p style={{ ...es.ayudaPorcentaje, color: porcentajeInfo.disponible <= 0 ? '#c62828' : '#888' }}>
+                    Ya usado en este período: {porcentajeInfo.usado}% · Disponible: {porcentajeInfo.disponible}%
+                  </p>
+                )}
               </div>
               <div style={es.grupo}>
-                <label style={es.label}>Intentos permitidos</label>
-                <input type="number" min={1} max={5} value={meta.intentos_permitidos}
-                  onChange={e => setMeta({ ...meta, intentos_permitidos: parseInt(e.target.value) })} style={es.input} />
+                <label style={es.label}>Fecha de inicio</label>
+                <input type="date" value={meta.fecha_inicio}
+                  onChange={e => setMeta({ ...meta, fecha_inicio: e.target.value })} style={es.input} />
               </div>
+              <div style={es.grupo}>
+                <label style={es.label}>Fecha de cierre</label>
+                <input type="date" value={meta.fecha_cierre}
+                  onChange={e => setMeta({ ...meta, fecha_cierre: e.target.value })} style={es.input} />
+              </div>
+              {meta.tipo !== 'entrega_archivo' && (
+                <>
+                  <div style={es.grupo}>
+                    <label style={es.label}>Tiempo límite (min)</label>
+                    <input type="number" min={5} max={120} value={meta.tiempo_limite_minutos}
+                      onChange={e => setMeta({ ...meta, tiempo_limite_minutos: parseInt(e.target.value) })} style={es.input} />
+                  </div>
+                  <div style={es.grupo}>
+                    <label style={es.label}>Intentos permitidos</label>
+                    <input type="number" min={1} max={5} value={meta.intentos_permitidos}
+                      onChange={e => setMeta({ ...meta, intentos_permitidos: parseInt(e.target.value) })} style={es.input} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Tipo */}
           <div style={es.card}>
             <h3 style={es.cardTitulo}>
-              Tipo de actividad
+              Tipo de Pregunta
               {modoEdicion && <span style={{ fontSize: 12, color: '#888', fontWeight: 400, marginLeft: 8 }}>(no se puede cambiar al editar)</span>}
             </h3>
             <div style={es.tiposGrid}>
@@ -687,6 +765,7 @@ export default function CrearActividad() {
             {meta.tipo === 'ordenar_letras'     && <EditorOrdenarLetras     contenido={contenido} onChange={setContenido} />}
             {meta.tipo === 'ordenar_palabras'   && <EditorOrdenarPalabras   contenido={contenido} onChange={setContenido} />}
             {meta.tipo === 'sopa_letras'        && <EditorSopaLetras        contenido={contenido} onChange={setContenido} />}
+            {meta.tipo === 'entrega_archivo'    && <EditorEntregaArchivo    contenido={contenido} onChange={setContenido} />}
           </div>
 
           {error && <div style={es.errorBox}>{error}</div>}
@@ -723,6 +802,7 @@ const es = {
   btnGuardar: { flex: 1, background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff', border: 'none', borderRadius: 10, padding: '14px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
   btnCancelar: { background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 10, padding: '14px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit', color: '#555' },
   sinPeriodos: { padding: '10px 14px', borderRadius: 8, background: '#fff8e1', border: '1px solid #ffe082', color: '#e65100', fontSize: 13, lineHeight: 1.5 },
+  ayudaPorcentaje: { fontSize: 12, margin: '4px 0 0' },
 
   // Generador IA
   cardIA: { background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', border: '1.5px solid #c5b8f7', borderRadius: 16, padding: 20, marginBottom: 20 },

@@ -1,5 +1,6 @@
 'use strict';
 const PDFDocument = require('pdfkit');
+const { formatearApellidoPrimero } = require('../utils/ordenNombre');
 
 const NIVEL = {
   'Superior':      { bg: '#E3F2FD', text: '#1565C0' },
@@ -36,7 +37,7 @@ function dibujarBoletin(doc, b) {
   // Chip período (derecha)
   doc.fillColor('#4A3AC0').rect(M + W - 90, y + 16, 80, 26).fill();
   doc.fillColor('#FFFFFF').fontSize(11).font('Helvetica-Bold')
-     .text(`Período ${b.periodo}`, M + W - 90, y + 22, { width: 80, align: 'center' });
+     .text(b.periodo === 'final' ? 'Final' : `Período ${b.periodo}`, M + W - 90, y + 22, { width: 80, align: 'center' });
 
   y += 72;
 
@@ -46,7 +47,7 @@ function dibujarBoletin(doc, b) {
 
   const cols = W / 4;
   const labels = ['ESTUDIANTE', 'GRADO', 'GRUPO', 'FECHA'];
-  const values = [b.estudiante.nombre, `${b.grupo.grado}°`, b.grupo.nombre, fechaHoy()];
+  const values = [formatearApellidoPrimero(b.estudiante.nombre), `${b.grupo.grado}°`, b.grupo.nombre, fechaHoy()];
   for (let i = 0; i < 4; i++) {
     const cx = M + i * cols + 10;
     doc.fillColor('#9E9E9E').fontSize(7.5).font('Helvetica-Bold')
@@ -191,11 +192,17 @@ function dibujarBoletin(doc, b) {
   doc.fillColor('#555555').fontSize(8.5).font('Helvetica-Bold')
      .text('Observaciones del período:', M, y, { lineBreak: false });
   y += 14;
-  for (let i = 0; i < 3; i++) {
-    doc.strokeColor('#E0E0E0').lineWidth(0.8).moveTo(M, y).lineTo(M + W, y).stroke();
-    y += 20;
+  if (b.observacion) {
+    doc.fillColor('#333333').fontSize(9).font('Helvetica')
+       .text(b.observacion, M, y, { width: W, align: 'justify', lineGap: 2 });
+    y = doc.y + 10;
+  } else {
+    for (let i = 0; i < 3; i++) {
+      doc.strokeColor('#E0E0E0').lineWidth(0.8).moveTo(M, y).lineTo(M + W, y).stroke();
+      y += 20;
+    }
+    y += 8;
   }
-  y += 8;
 
   // ── FIRMAS ───────────────────────────────────────────────────────────────────
   const sigW = (W - 40) / 3;
@@ -219,9 +226,6 @@ function dibujarBoletin(doc, b) {
 
 function generarPDF(data) {
   return new Promise((resolve, reject) => {
-    const boletines = Array.isArray(data) ? data : [data];
-    const nombreColegio = boletines[0]?.colegio?.nombre || process.env.INSTITUCION_NOMBRE || 'Boletín';
-
     const doc = new PDFDocument({
       size: 'A4',
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
@@ -233,6 +237,8 @@ function generarPDF(data) {
     doc.on('data', chunk => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
+
+    const boletines = Array.isArray(data) ? data : [data];
     boletines.forEach((b, i) => {
       if (i > 0) doc.addPage();
       dibujarBoletin(doc, b);

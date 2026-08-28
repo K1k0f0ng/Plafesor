@@ -1,5 +1,6 @@
 'use strict';
 const PDFDocument = require('pdfkit');
+const { formatearApellidoPrimero } = require('../utils/ordenNombre');
 
 const NIVEL = {
   'Superior':      { bg: '#E3F2FD', text: '#1565C0' },
@@ -46,7 +47,7 @@ function dibujarBoletin(doc, b) {
 
   const cols = W / 4;
   const labels = ['ESTUDIANTE', 'GRADO', 'GRUPO', 'FECHA'];
-  const values = [b.estudiante.nombre, `${b.grupo.grado}°`, b.grupo.nombre, fechaHoy()];
+  const values = [formatearApellidoPrimero(b.estudiante.nombre), `${b.grupo.grado}°`, b.grupo.nombre, fechaHoy()];
   for (let i = 0; i < 4; i++) {
     const cx = M + i * cols + 10;
     doc.fillColor('#9E9E9E').fontSize(7.5).font('Helvetica-Bold')

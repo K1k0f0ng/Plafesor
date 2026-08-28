@@ -4,6 +4,9 @@ import * as XLSX from 'xlsx';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
+import { FichaBasicaContenido } from '../components/FichaEstudiante';
+import { ordenarPorApellido } from '../utils/ordenNombre';
+import { COLOR_PRIMARIO, COLOR_SECUNDARIO } from '../config/tema';
 import {
   IconCalendar, IconCheck, IconClock, IconAlertTriangle, IconClipboard,
   IconEdit, IconCheckSquare, IconBookOpen, IconDownload, IconInbox, IconZap, IconGrid,
@@ -27,6 +30,10 @@ export default function DashboardDocente() {
   const [planesAbiertos, setPlanesAbiertos] = useState(false);
   const [resumenHoy, setResumenHoy] = useState([]);
   const [clasesHoy, setClasesHoy] = useState([]);
+  const [hoyAbierto, setHoyAbierto] = useState(false);
+  const [estudianteSelId, setEstudianteSelId] = useState(null);
+  const [fichaEstudiante, setFichaEstudiante] = useState(null);
+  const [cargandoFichaEstudiante, setCargandoFichaEstudiante] = useState(false);
 
   const estudiantesEnRiesgo = new Set(alertas.map(a => a.estudiante_id)).size;
 
@@ -55,6 +62,8 @@ export default function DashboardDocente() {
   }, [usuario.id]);
 
   async function verEstudiantes(asig) {
+    setEstudianteSelId(null);
+    setFichaEstudiante(null);
     if (seleccionada?.id === asig.id) {
       setSeleccionada(null);
       setReporte([]);
@@ -69,6 +78,20 @@ export default function DashboardDocente() {
       setReporte([]);
     } finally {
       setCargandoReporte(false);
+    }
+  }
+
+  async function verFichaEstudiante(estudianteId) {
+    setEstudianteSelId(estudianteId);
+    setFichaEstudiante(null);
+    setCargandoFichaEstudiante(true);
+    try {
+      const r = await axiosAuth.get(`/api/estudiantes/${estudianteId}/ficha`);
+      setFichaEstudiante(r.data.data);
+    } catch {
+      setFichaEstudiante({ error: true });
+    } finally {
+      setCargandoFichaEstudiante(false);
     }
   }
 
@@ -99,8 +122,9 @@ export default function DashboardDocente() {
       estudiantesMap[r.estudiante_id][r.actividad_id] = r.nota;
     });
 
-    // Construir filas pivoteadas
-    const filas = Object.values(estudiantesMap).map(est => {
+    // Construir filas pivoteadas (Object.values reordena por clave numérica
+    // del estudiante_id sin importar el orden real — se reordena por apellido)
+    const filas = ordenarPorApellido(Object.values(estudiantesMap), 'nombre').map(est => {
       const fila = { Estudiante: est.nombre };
       const notasValidas = [];
       actividades.forEach(act => {
@@ -158,8 +182,12 @@ export default function DashboardDocente() {
                     <button onClick={() => navigate('/mi-horario')} style={es.btnVerHorario}>
                       Editar horario →
                     </button>
+                    <button onClick={() => setHoyAbierto(a => !a)} style={es.hoyToggle}>
+                      {hoyAbierto ? '▲' : '▼'}
+                    </button>
                   </div>
                 </div>
+                {hoyAbierto && (
                 <div style={es.hoyGrupos}>
                   {clasesHoy.map(c => {
                     const asistencia = asistenciaMap[c.grupo_id];
@@ -186,6 +214,7 @@ export default function DashboardDocente() {
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           }
@@ -207,8 +236,12 @@ export default function DashboardDocente() {
                     <button onClick={() => navigate('/mi-horario')} style={es.btnVerHorario}>
                       Configurar horario →
                     </button>
+                    <button onClick={() => setHoyAbierto(a => !a)} style={es.hoyToggle}>
+                      {hoyAbierto ? '▲' : '▼'}
+                    </button>
                   </div>
                 </div>
+                {hoyAbierto && (
                 <div style={es.hoyGrupos}>
                   {resumenHoy.map(g => (
                     <div key={g.grupo_id} style={es.hoyFila}>
@@ -226,6 +259,7 @@ export default function DashboardDocente() {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             );
           }
@@ -303,7 +337,7 @@ export default function DashboardDocente() {
             <span style={{ fontWeight: '700', fontSize: '15px' }}>Pasar lista</span>
             <span style={{ fontSize: '12px', color: '#aaa' }}>Registrar asistencia del día</span>
           </button>
-          <button onClick={() => navigate('/copiloto-docente')} style={{ ...es.btnAccion, background: 'linear-gradient(135deg, var(--color-primario)11, var(--color-secundario)11)', border: '2px solid #e8eaf6' }}>
+          <button onClick={() => navigate('/copiloto-docente')} style={{ ...es.btnAccion, background: `linear-gradient(135deg, ${COLOR_PRIMARIO}11, ${COLOR_SECUNDARIO}11)`, border: '2px solid #e8eaf6' }}>
             <IconZap size={26} style={{ color: 'var(--color-primario)' }} />
             <span style={{ fontWeight: '700', fontSize: '15px' }}>Copiloto IA</span>
             <span style={{ fontSize: '12px', color: '#aaa' }}>Analiza tus grupos con IA</span>
@@ -354,61 +388,93 @@ export default function DashboardDocente() {
             </div>
 
             {/* Panel de estudiantes */}
-            {seleccionada && (
-              <div style={es.panel}>
-                <div style={es.panelEncabezado}>
-                  <h5 style={es.panelTitulo}>
-                    Progreso de estudiantes — {seleccionada.nombre_materia} en {seleccionada.grado}° {seleccionada.nombre_grupo}
-                  </h5>
-                  {!cargandoReporte && reporte.length > 0 && (
-                    <button onClick={exportarExcel} style={es.btnExcel}>
-                      <IconDownload size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                      Exportar Excel
-                    </button>
+            {seleccionada && (() => {
+              const estudiantesUnicos = [];
+              const vistos = new Set();
+              reporte.forEach(r => {
+                if (!vistos.has(r.estudiante_id)) {
+                  vistos.add(r.estudiante_id);
+                  estudiantesUnicos.push({ id: r.estudiante_id, nombre: r.nombre_estudiante });
+                }
+              });
+              const actividadesEstudiante = estudianteSelId
+                ? reporte.filter(r => r.estudiante_id === estudianteSelId)
+                : [];
+
+              return (
+                <div style={es.panel}>
+                  <div style={es.panelEncabezado}>
+                    <h5 style={es.panelTitulo}>
+                      Progreso de estudiantes — {seleccionada.nombre_materia} en {seleccionada.grado}° {seleccionada.nombre_grupo}
+                    </h5>
+                    {!cargandoReporte && reporte.length > 0 && (
+                      <button onClick={exportarExcel} style={es.btnExcel}>
+                        <IconDownload size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                        Exportar Excel
+                      </button>
+                    )}
+                  </div>
+
+                  {cargandoReporte ? (
+                    <p style={es.textoGris}>Cargando datos...</p>
+                  ) : reporte.length === 0 ? (
+                    <p style={es.textoGris}>No hay actividades asignadas o estudiantes en este grupo.</p>
+                  ) : !estudianteSelId ? (
+                    // ── Nivel 1: solo nombres ──
+                    <div style={es.listaNombres}>
+                      {estudiantesUnicos.map(est => (
+                        <button key={est.id} onClick={() => verFichaEstudiante(est.id)} style={es.filaNombre}>
+                          <span>{est.nombre}</span>
+                          <span style={{ color: '#bbb' }}>Ver ficha →</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    // ── Nivel 2: ficha + actividades de ese estudiante ──
+                    <div>
+                      <button onClick={() => setEstudianteSelId(null)} style={es.btnVolverLista}>← Volver a la lista</button>
+                      <div style={es.detalleGrid}>
+                        <div style={es.fichaCard}>
+                          <FichaBasicaContenido datos={fichaEstudiante} cargando={cargandoFichaEstudiante} />
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={es.tabla}>
+                            <thead>
+                              <tr>
+                                <th style={es.th}>Actividad</th>
+                                <th style={es.th}>Periodo</th>
+                                <th style={es.th}>Nota</th>
+                                <th style={es.th}>Desempeño</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {actividadesEstudiante.map((r, i) => (
+                                <tr key={i} style={es.tr}>
+                                  <td style={es.td}>{r.titulo}</td>
+                                  <td style={es.td}>Periodo {r.periodo}</td>
+                                  <td style={{ ...es.td, fontWeight: '700', color: 'var(--color-primario)' }}>
+                                    {r.nota !== null ? r.nota : 'No realizada'}
+                                  </td>
+                                  <td style={es.td}>
+                                    <span style={{
+                                      padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                                      background: NIVEL_COLOR[r.nivel_desempeno] || '#f5f5f5',
+                                      color: NIVEL_TEXTO[r.nivel_desempeno] || '#888'
+                                    }}>
+                                      {r.nivel_desempeno}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-                {cargandoReporte ? (
-                  <p style={es.textoGris}>Cargando datos...</p>
-                ) : reporte.length === 0 ? (
-                  <p style={es.textoGris}>No hay actividades asignadas o estudiantes en este grupo.</p>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={es.tabla}>
-                      <thead>
-                        <tr>
-                          <th style={es.th}>Estudiante</th>
-                          <th style={es.th}>Actividad</th>
-                          <th style={es.th}>Periodo</th>
-                          <th style={es.th}>Nota</th>
-                          <th style={es.th}>Desempeño</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {reporte.map((r, i) => (
-                          <tr key={i} style={es.tr}>
-                            <td style={es.td}>{r.nombre_estudiante}</td>
-                            <td style={es.td}>{r.titulo}</td>
-                            <td style={es.td}>Periodo {r.periodo}</td>
-                            <td style={{ ...es.td, fontWeight: '700', color: 'var(--color-primario)' }}>
-                              {r.nota !== null ? r.nota : '—'}
-                            </td>
-                            <td style={es.td}>
-                              <span style={{
-                                padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
-                                background: NIVEL_COLOR[r.nivel_desempeno] || '#f5f5f5',
-                                color: NIVEL_TEXTO[r.nivel_desempeno] || '#888'
-                              }}>
-                                {r.nivel_desempeno}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+              );
+            })()}
           </>
         )}
       </div>
@@ -459,6 +525,21 @@ const es = {
   },
   sinDatos: { background: '#fff', borderRadius: '16px', padding: '48px', textAlign: 'center', color: '#888', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' },
 
+  // Progreso de estudiantes — lista de nombres y detalle
+  listaNombres: { display: 'flex', flexDirection: 'column', gap: '6px' },
+  filaNombre: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    background: '#fafafa', border: 'none', borderRadius: '8px', padding: '12px 16px',
+    fontSize: '14px', fontWeight: '600', color: '#333', cursor: 'pointer',
+    fontFamily: 'inherit', width: '100%', textAlign: 'left',
+  },
+  btnVolverLista: {
+    background: 'none', border: 'none', color: 'var(--color-primario)', cursor: 'pointer',
+    fontSize: '13px', fontWeight: '700', padding: 0, marginBottom: '16px', fontFamily: 'inherit',
+  },
+  detalleGrid: { display: 'grid', gridTemplateColumns: '260px 1fr', gap: '20px', alignItems: 'start' },
+  fichaCard: { background: '#fafafa', borderRadius: '12px', padding: '20px', border: '1px solid #f0f0f0' },
+
   // Hoy
   hoyCard: { background: '#fff', borderRadius: '14px', padding: '18px 20px', marginBottom: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderLeft: '4px solid var(--color-primario)' },
   hoyEncabezado: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' },
@@ -473,6 +554,7 @@ const es = {
   hoyHora: { fontSize: '12px', color: '#888', fontWeight: 700, background: '#f0f0f0', borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' },
   hoyMateria: { fontSize: '13px', color: 'var(--color-primario)', fontWeight: 600, flex: 1 },
   btnVerHorario: { background: 'none', border: '1px solid var(--color-primario)', color: 'var(--color-primario)', borderRadius: 8, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  hoyToggle: { background: '#f5f5f5', border: 'none', color: '#888', borderRadius: 8, width: 26, height: 26, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   textoGris: { color: '#888', fontSize: '14px' },
   tabla: { width: '100%', borderCollapse: 'collapse', minWidth: '600px' },
   th: { textAlign: 'left', padding: '10px 12px', fontSize: '13px', fontWeight: '600', color: '#666', borderBottom: '2px solid #f0f0f0' },

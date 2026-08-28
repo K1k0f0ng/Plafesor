@@ -39,6 +39,8 @@ import BancoActividades from './pages/BancoActividades';
 import HorarioDocente from './pages/HorarioDocente';
 import CrearActividad from './pages/CrearActividad';
 import VerActividades from './pages/VerActividades';
+import RevisarEntregas from './pages/RevisarEntregas';
+import Mensajeria from './pages/Mensajeria';
 import PasarLista from './pages/PasarLista';
 import Anotaciones from './pages/Anotaciones';
 import Boletin from './pages/Boletin';
@@ -125,6 +127,7 @@ function AppRoutes() {
       <Route path="/crear-actividad"         element={<RutaPrivada rolesPermitidos={['docente']}><CrearActividad /></RutaPrivada>} />
       <Route path="/editar-actividad/:id"    element={<RutaPrivada rolesPermitidos={['docente']}><CrearActividad /></RutaPrivada>} />
       <Route path="/mis-actividades"   element={<RutaPrivada rolesPermitidos={['docente']}><VerActividades /></RutaPrivada>} />
+      <Route path="/revisar-entregas/:id" element={<RutaPrivada rolesPermitidos={['docente']}><RevisarEntregas /></RutaPrivada>} />
       <Route path="/pasar-lista"       element={<RutaPrivada rolesPermitidos={['docente']}><PasarLista /></RutaPrivada>} />
       <Route path="/anotaciones"       element={<RutaPrivada rolesPermitidos={['docente']}><Anotaciones /></RutaPrivada>} />
       <Route path="/boletin"            element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']}><Boletin /></RutaPrivada>} />
@@ -132,6 +135,7 @@ function AppRoutes() {
       <Route path="/mensajes-masivos"   element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']}><MensajesMasivos /></RutaPrivada>} />
       <Route path="/libro-notas"        element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']}><LibroNotas /></RutaPrivada>} />
       <Route path="/piar"               element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']}><PIAR /></RutaPrivada>} />
+      <Route path="/mensajeria"         element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin', 'padre']}><Mensajeria /></RutaPrivada>} />
 
       {/* Rutas Estudiante */}
       <Route path="/dashboard-estudiante" element={<RutaPrivada rolesPermitidos={['estudiante']}><DashboardEstudiante /></RutaPrivada>} />

@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
+import { Avatar, FichaBasicaContenido } from '../components/FichaEstudiante';
+import { FichaMedicaEditor } from '../components/FichaMedica';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const TIPOS_DOC_ESTUDIANTE = [
   { value: 'RC', label: 'Registro Civil de Nacimiento' },
@@ -23,12 +26,14 @@ const GENEROS = [
 const FORM_VACIO = {
   // Datos del alumno
   nombre: '', email: '', password: '',
-  tipo_documento: '', numero_documento: '',
+  tipo_documento: '', numero_documento: '', lugar_expedicion_documento: '',
   fecha_nacimiento: '', lugar_nacimiento: '', genero: '', grupo_sanguineo: '',
-  direccion: '', eps_sisben: '',
-  grupo_id: '', telefono_padres: '', requiere_piar: false,
+  direccion: '', barrio: '', ciudad: '', comuna: '', eps_sisben: '',
+  grupo_id: '', telefono_padres: '', telefono: '', celular: '', requiere_piar: false,
   // Datos poblacionales especiales (si aplica)
   discapacidad: '', grupo_etnico: '', victima_conflicto: false,
+  // Datos de matrícula / procedencia (SIMAT)
+  codigo_matricula: '', estudiante_nuevo: true, colegio_procedencia: '', anio_procedencia: '',
   // Datos del acudiente (opcional)
   acudiente_nombre: '', acudiente_parentesco: '',
   acudiente_tipo_documento: '', acudiente_numero_documento: '',
@@ -42,14 +47,24 @@ const COLUMNAS_EXCEL = [
   { header: 'Contraseña *',                                    campo: 'password' },
   { header: 'Tipo de documento (RC/TI/CC/CE)',                 campo: 'tipo_documento' },
   { header: 'Número de documento',                             campo: 'numero_documento' },
+  { header: 'Lugar de expedición del documento',               campo: 'lugar_expedicion_documento' },
+  { header: 'Código de matrícula',                             campo: 'codigo_matricula' },
   { header: 'Fecha de nacimiento (AAAA-MM-DD)',                campo: 'fecha_nacimiento' },
   { header: 'Lugar de nacimiento',                             campo: 'lugar_nacimiento' },
   { header: 'Género (M/F/Otro)',                                campo: 'genero' },
   { header: 'Grupo sanguíneo (RH)',                             campo: 'grupo_sanguineo' },
   { header: 'Dirección de residencia',                         campo: 'direccion' },
+  { header: 'Barrio',                                          campo: 'barrio' },
+  { header: 'Ciudad',                                          campo: 'ciudad' },
+  { header: 'Comuna',                                          campo: 'comuna' },
   { header: 'EPS o Sisbén',                                    campo: 'eps_sisben' },
+  { header: 'Teléfono fijo',                                   campo: 'telefono' },
+  { header: 'Celular',                                         campo: 'celular' },
   { header: 'Teléfono de contacto (WhatsApp)',                 campo: 'telefono_padres' },
   { header: 'Requiere PIAR (Sí/No)',                            campo: 'requiere_piar' },
+  { header: 'Estudiante nuevo (Sí/No)',                         campo: 'estudiante_nuevo' },
+  { header: 'Colegio de procedencia',                          campo: 'colegio_procedencia' },
+  { header: 'Año de procedencia',                               campo: 'anio_procedencia' },
   { header: 'Discapacidad o capacidad excepcional (si aplica)', campo: 'discapacidad' },
   { header: 'Grupo étnico o resguardo indígena (si aplica)',   campo: 'grupo_etnico' },
   { header: 'Víctima de conflicto armado (Sí/No)',              campo: 'victima_conflicto' },
@@ -97,17 +112,27 @@ function filaExcelAEstudiante(row) {
     password: val('password') || '123456',
     tipo_documento: normalizarTipoDoc(val('tipo_documento'), ['RC', 'TI', 'CC', 'CE']),
     numero_documento: val('numero_documento') || null,
+    lugar_expedicion_documento: val('lugar_expedicion_documento') || null,
+    codigo_matricula: val('codigo_matricula') || null,
     fecha_nacimiento: normalizarFecha(row[COLUMNAS_EXCEL.find(c => c.campo === 'fecha_nacimiento').header]),
     lugar_nacimiento: val('lugar_nacimiento') || null,
     genero: normalizarGenero(val('genero')),
     grupo_sanguineo: val('grupo_sanguineo') || null,
     direccion: val('direccion') || null,
+    barrio: val('barrio') || null,
+    ciudad: val('ciudad') || null,
+    comuna: val('comuna') || null,
     eps_sisben: val('eps_sisben') || null,
+    telefono: val('telefono') || null,
+    celular: val('celular') || null,
     telefono_padres: val('telefono_padres') || null,
     requiere_piar: normalizarSiNo(val('requiere_piar')),
     discapacidad: val('discapacidad') || null,
     grupo_etnico: val('grupo_etnico') || null,
     victima_conflicto: normalizarSiNo(val('victima_conflicto')),
+    estudiante_nuevo: val('estudiante_nuevo') ? normalizarSiNo(val('estudiante_nuevo')) : true,
+    colegio_procedencia: val('colegio_procedencia') || null,
+    anio_procedencia: val('anio_procedencia') || null,
     acudiente_nombre: val('acudiente_nombre') || null,
     acudiente_parentesco: val('acudiente_parentesco') || null,
     acudiente_tipo_documento: normalizarTipoDoc(val('acudiente_tipo_documento'), ['CC', 'CE']),
@@ -138,6 +163,8 @@ function CamposAlumno({ valores, set, grupos }) {
       </select>
       <input type="text" placeholder="Número de documento" value={valores.numero_documento}
         onChange={e => set({ ...valores, numero_documento: e.target.value })} style={es.input} />
+      <input type="text" placeholder="Lugar de expedición del documento" value={valores.lugar_expedicion_documento}
+        onChange={e => set({ ...valores, lugar_expedicion_documento: e.target.value })} style={es.input} />
       <label style={es.campoConLabel}>
         <span style={es.miniLabel}>Fecha de nacimiento</span>
         <input type="date" value={valores.fecha_nacimiento}
@@ -153,8 +180,18 @@ function CamposAlumno({ valores, set, grupos }) {
         onChange={e => set({ ...valores, grupo_sanguineo: e.target.value })} style={{ ...es.input, maxWidth: '160px' }} />
       <input type="text" placeholder="Dirección de residencia" value={valores.direccion}
         onChange={e => set({ ...valores, direccion: e.target.value })} style={{ ...es.input, flexBasis: '100%' }} />
+      <input type="text" placeholder="Barrio" value={valores.barrio}
+        onChange={e => set({ ...valores, barrio: e.target.value })} style={es.input} />
+      <input type="text" placeholder="Ciudad" value={valores.ciudad}
+        onChange={e => set({ ...valores, ciudad: e.target.value })} style={es.input} />
+      <input type="text" placeholder="Comuna" value={valores.comuna}
+        onChange={e => set({ ...valores, comuna: e.target.value })} style={{ ...es.input, maxWidth: '140px' }} />
       <input type="text" placeholder="EPS o Sisbén" value={valores.eps_sisben}
         onChange={e => set({ ...valores, eps_sisben: e.target.value })} style={es.input} />
+      <input type="tel" placeholder="Teléfono fijo" value={valores.telefono}
+        onChange={e => set({ ...valores, telefono: e.target.value })} style={es.input} />
+      <input type="tel" placeholder="Celular" value={valores.celular}
+        onChange={e => set({ ...valores, celular: e.target.value })} style={es.input} />
       <input type="tel" placeholder="Teléfono de contacto — WhatsApp (opcional)" value={valores.telefono_padres}
         onChange={e => set({ ...valores, telefono_padres: e.target.value })} style={es.input} />
       <label style={{ ...es.checkboxRow, flexBasis: '100%' }}>
@@ -175,6 +212,23 @@ function CamposPoblacionales({ valores, set }) {
       <label style={es.checkboxRow}>
         <input type="checkbox" checked={valores.victima_conflicto} onChange={e => set({ ...valores, victima_conflicto: e.target.checked })} />
         Víctima del conflicto armado / desplazamiento forzado
+      </label>
+    </>
+  );
+}
+
+function CamposProcedencia({ valores, set }) {
+  return (
+    <>
+      <input type="text" placeholder="Código de matrícula" value={valores.codigo_matricula}
+        onChange={e => set({ ...valores, codigo_matricula: e.target.value })} style={es.input} />
+      <input type="text" placeholder="Colegio de procedencia (si viene de otra institución)" value={valores.colegio_procedencia}
+        onChange={e => set({ ...valores, colegio_procedencia: e.target.value })} style={es.input} />
+      <input type="text" placeholder="Año de procedencia — ej. 2023-2024" value={valores.anio_procedencia}
+        onChange={e => set({ ...valores, anio_procedencia: e.target.value })} style={{ ...es.input, maxWidth: '160px' }} />
+      <label style={{ ...es.checkboxRow, flexBasis: '100%' }}>
+        <input type="checkbox" checked={valores.estudiante_nuevo} onChange={e => set({ ...valores, estudiante_nuevo: e.target.checked })} />
+        Estudiante nuevo en la institución este año lectivo
       </label>
     </>
   );
@@ -218,6 +272,19 @@ export default function Estudiantes() {
   const [editando,   setEditando]   = useState(null);
   const [editForm,   setEditForm]   = useState(FORM_VACIO);
   const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  // Ficha básica (foto, curso, acudiente, director de grupo)
+  const [fichaEstudiante, setFichaEstudiante] = useState(null);
+  const [fichaDatos, setFichaDatos] = useState(null);
+  const [cargandoFicha, setCargandoFicha] = useState(false);
+
+  // Ficha médica (peso, alergias, contactos de emergencia, etc.)
+  const [fichaMedicaEstudiante, setFichaMedicaEstudiante] = useState(null);
+  const [fichaMedicaDatos, setFichaMedicaDatos] = useState({});
+  const [cargandoFichaMedica, setCargandoFichaMedica] = useState(false);
+  const [guardandoFichaMedica, setGuardandoFichaMedica] = useState(false);
+  const [errorFichaMedica, setErrorFichaMedica] = useState('');
 
   // Importación masiva (Excel)
   const [excelGrupoId, setExcelGrupoId] = useState('');
@@ -265,12 +332,15 @@ export default function Estudiantes() {
     const ejemplo1 = {
       'Nombre completo *': 'Juan Pérez Gómez', 'Correo electrónico *': 'juan.perez@correo.com', 'Contraseña *': 'clave123',
       'Tipo de documento (RC/TI/CC/CE)': 'TI', 'Número de documento': '1002345678',
+      'Lugar de expedición del documento': 'Bogotá D.C.', 'Código de matrícula': '2026001',
       'Fecha de nacimiento (AAAA-MM-DD)': '2013-05-14', 'Lugar de nacimiento': 'Bogotá D.C.',
       'Género (M/F/Otro)': 'M', 'Grupo sanguíneo (RH)': 'O+',
-      'Dirección de residencia': 'Calle 45 # 12-30, Barrio Centro', 'EPS o Sisbén': 'Nueva EPS',
+      'Dirección de residencia': 'Calle 45 # 12-30', 'Barrio': 'Centro', 'Ciudad': 'Bogotá D.C.', 'Comuna': '',
+      'EPS o Sisbén': 'Nueva EPS', 'Teléfono fijo': '', 'Celular': '3001234567',
       'Teléfono de contacto (WhatsApp)': '3001234567', 'Requiere PIAR (Sí/No)': 'No',
       'Discapacidad o capacidad excepcional (si aplica)': '', 'Grupo étnico o resguardo indígena (si aplica)': '',
       'Víctima de conflicto armado (Sí/No)': 'No',
+      'Estudiante nuevo (Sí/No)': 'Sí', 'Colegio de procedencia': '', 'Año de procedencia': '',
       'Nombre del acudiente': 'María Gómez', 'Parentesco del acudiente': 'Madre',
       'Tipo doc. del acudiente (CC/CE)': 'CC', 'Número doc. del acudiente': '52123456',
       'Correo del acudiente (opcional, crea su acceso)': 'maria.gomez@correo.com',
@@ -279,12 +349,15 @@ export default function Estudiantes() {
     const ejemplo2 = {
       'Nombre completo *': 'Sara López Ruiz', 'Correo electrónico *': 'sara.lopez@correo.com', 'Contraseña *': 'clave789',
       'Tipo de documento (RC/TI/CC/CE)': 'TI', 'Número de documento': '1002345679',
+      'Lugar de expedición del documento': 'Cali', 'Código de matrícula': '2026002',
       'Fecha de nacimiento (AAAA-MM-DD)': '2012-11-02', 'Lugar de nacimiento': 'Medellín, Antioquia',
       'Género (M/F/Otro)': 'F', 'Grupo sanguíneo (RH)': 'A+',
-      'Dirección de residencia': 'Carrera 8 # 20-15', 'EPS o Sisbén': 'Sisbén nivel 2',
+      'Dirección de residencia': 'Carrera 8 # 20-15', 'Barrio': 'La Flora', 'Ciudad': 'Cali', 'Comuna': '2',
+      'EPS o Sisbén': 'Sisbén nivel 2', 'Teléfono fijo': '', 'Celular': '3009876543',
       'Teléfono de contacto (WhatsApp)': '3009876543', 'Requiere PIAR (Sí/No)': 'No',
       'Discapacidad o capacidad excepcional (si aplica)': '', 'Grupo étnico o resguardo indígena (si aplica)': 'Indígena',
       'Víctima de conflicto armado (Sí/No)': 'No',
+      'Estudiante nuevo (Sí/No)': 'No', 'Colegio de procedencia': 'Institución Educativa La Esperanza', 'Año de procedencia': '2023-2024',
       'Nombre del acudiente': '', 'Parentesco del acudiente': '', 'Tipo doc. del acudiente (CC/CE)': '',
       'Número doc. del acudiente': '', 'Correo del acudiente (opcional, crea su acceso)': '', 'Contraseña del acudiente (opcional)': '',
     };
@@ -348,15 +421,25 @@ export default function Estudiantes() {
       requiere_piar:   !!est.requiere_piar,
       tipo_documento:  est.tipo_documento || '',
       numero_documento: est.numero_documento || '',
+      lugar_expedicion_documento: est.lugar_expedicion_documento || '',
       fecha_nacimiento: est.fecha_nacimiento ? String(est.fecha_nacimiento).slice(0, 10) : '',
       lugar_nacimiento: est.lugar_nacimiento || '',
       genero:           est.genero || '',
       grupo_sanguineo:  est.grupo_sanguineo || '',
       direccion:        est.direccion || '',
+      barrio:           est.barrio || '',
+      ciudad:           est.ciudad || '',
+      comuna:           est.comuna || '',
       eps_sisben:       est.eps_sisben || '',
+      telefono:         est.telefono || '',
+      celular:          est.celular || '',
       discapacidad:     est.discapacidad || '',
       grupo_etnico:     est.grupo_etnico || '',
       victima_conflicto: !!est.victima_conflicto,
+      codigo_matricula: est.codigo_matricula || '',
+      estudiante_nuevo: est.estudiante_nuevo !== undefined ? !!est.estudiante_nuevo : true,
+      colegio_procedencia: est.colegio_procedencia || '',
+      anio_procedencia: est.anio_procedencia || '',
     });
     setEditando(est);
     setError('');
@@ -375,6 +458,73 @@ export default function Estudiantes() {
       setError(err.response?.data?.error || 'Error al actualizar el estudiante');
     } finally {
       setGuardandoEdit(false);
+    }
+  }
+
+  async function abrirFicha(est) {
+    setFichaEstudiante(est);
+    setFichaDatos(null);
+    setCargandoFicha(true);
+    try {
+      const r = await axiosAuth.get(`/api/estudiantes/${est.id}/ficha`);
+      setFichaDatos(r.data.data);
+    } catch {
+      setFichaDatos({ error: true });
+    } finally {
+      setCargandoFicha(false);
+    }
+  }
+
+  async function abrirFichaMedica(est) {
+    setFichaMedicaEstudiante(est);
+    setFichaMedicaDatos({});
+    setErrorFichaMedica('');
+    setCargandoFichaMedica(true);
+    try {
+      const r = await axiosAuth.get(`/api/estudiantes/${est.id}/ficha-medica`);
+      setFichaMedicaDatos(r.data.data || {});
+    } catch {
+      setErrorFichaMedica('No se pudo cargar la ficha médica.');
+    } finally {
+      setCargandoFichaMedica(false);
+    }
+  }
+
+  function cambiarCampoFichaMedica(campo, valor) {
+    setFichaMedicaDatos(prev => ({ ...prev, [campo]: valor }));
+  }
+
+  async function guardarFichaMedica() {
+    setGuardandoFichaMedica(true); setErrorFichaMedica('');
+    try {
+      await axiosAuth.put(`/api/estudiantes/${fichaMedicaEstudiante.id}/ficha-medica`, fichaMedicaDatos);
+      setFichaMedicaEstudiante(null);
+      setMensaje('Ficha médica guardada correctamente');
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (err) {
+      setErrorFichaMedica(err.response?.data?.error || 'Error al guardar la ficha médica');
+    } finally {
+      setGuardandoFichaMedica(false);
+    }
+  }
+
+  async function handleSubirFoto(id, archivo) {
+    if (!archivo) return;
+    setSubiendoFoto(true); setError('');
+    try {
+      const formData = new FormData();
+      formData.append('foto', archivo);
+      const r = await axiosAuth.post(`/api/estudiantes/${id}/foto`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setEditando(prev => (prev && prev.id === id ? { ...prev, foto_url: r.data.data.foto_url } : prev));
+      await cargar();
+      setMensaje('Foto actualizada correctamente');
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al subir la foto');
+    } finally {
+      setSubiendoFoto(false);
     }
   }
 
@@ -404,13 +554,28 @@ export default function Estudiantes() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff' }}>
               <div>
                 <div style={{ fontWeight: '800', fontSize: '15px' }}>Editar estudiante</div>
-                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '2px' }}>{editando.nombre}</div>
+                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '2px' }}>{formatearApellidoPrimero(editando.nombre)}</div>
               </div>
               <button onClick={() => setEditando(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '14px', fontWeight: '700', fontFamily: 'inherit' }}>✕</button>
             </div>
 
             <div style={{ padding: '24px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {error && <div style={es.errorBox}>{error}</div>}
+
+              <p style={es.seccionLabel}>Foto del alumno</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <Avatar nombre={editando.nombre} fotoUrl={editando.foto_url} size={56} />
+                <div>
+                  <input
+                    type="file" accept="image/jpeg,image/png,image/webp" id="fotoEstudiante"
+                    style={{ display: 'none' }}
+                    onChange={e => handleSubirFoto(editando.id, e.target.files[0])}
+                  />
+                  <label htmlFor="fotoEstudiante" style={{ ...es.btnEditar, cursor: subiendoFoto ? 'wait' : 'pointer', opacity: subiendoFoto ? 0.6 : 1 }}>
+                    {subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}
+                  </label>
+                </div>
+              </div>
 
               <p style={es.seccionLabel}>Datos del alumno</p>
               <div style={es.form}>
@@ -420,6 +585,11 @@ export default function Estudiantes() {
               <p style={es.seccionLabel}>Datos poblacionales (si aplica)</p>
               <div style={es.form}>
                 <CamposPoblacionales valores={editForm} set={setEditForm} />
+              </div>
+
+              <p style={es.seccionLabel}>Matrícula y procedencia</p>
+              <div style={es.form}>
+                <CamposProcedencia valores={editForm} set={setEditForm} />
               </div>
 
               <p style={es.seccionLabel}>Acudiente</p>
@@ -441,6 +611,48 @@ export default function Estudiantes() {
           </div>
         </>
       )}
+
+      {/* Modal — ficha básica del estudiante */}
+      {fichaEstudiante && (
+        <>
+          <div onClick={() => setFichaEstudiante(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)', zIndex: 100 }} />
+          <div style={es.fichaModal}>
+            <button onClick={() => setFichaEstudiante(null)} style={es.fichaCerrar}>✕</button>
+            <FichaBasicaContenido datos={fichaDatos} cargando={cargandoFicha} />
+          </div>
+        </>
+      )}
+
+      {/* Modal — ficha médica del estudiante */}
+      {fichaMedicaEstudiante && (
+        <>
+          <div onClick={() => setFichaMedicaEstudiante(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)', zIndex: 100 }} />
+          <div style={es.fichaMedicaModal}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: '#333' }}>Ficha médica</div>
+                <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{formatearApellidoPrimero(fichaMedicaEstudiante.nombre)}</div>
+              </div>
+              <button onClick={() => setFichaMedicaEstudiante(null)} style={es.fichaCerrar}>✕</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+              {cargandoFichaMedica ? (
+                <p style={es.textoGris}>Cargando...</p>
+              ) : (
+                <FichaMedicaEditor valores={fichaMedicaDatos} onChange={cambiarCampoFichaMedica} />
+              )}
+              {errorFichaMedica && <div style={es.errorBox}>{errorFichaMedica}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 10, paddingTop: 14, borderTop: '1px solid #f0f0f5' }}>
+              <button onClick={() => setFichaMedicaEstudiante(null)} style={{ ...es.btnPeligro, flex: 1, textAlign: 'center' }}>Cancelar</button>
+              <button onClick={guardarFichaMedica} disabled={guardandoFichaMedica || cargandoFichaMedica} style={{ ...es.btnPrimario, flex: 2, opacity: guardandoFichaMedica ? 0.6 : 1 }}>
+                {guardandoFichaMedica ? 'Guardando...' : 'Guardar ficha médica'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       <div style={es.contenido}>
         <button onClick={() => navigate('/dashboard')} style={es.btnVolver}>← Volver al panel</button>
 
@@ -469,6 +681,11 @@ export default function Estudiantes() {
               <p style={es.seccionLabel}>Datos poblacionales especiales (si aplica)</p>
               <div style={es.form}>
                 <CamposPoblacionales valores={form} set={setForm} />
+              </div>
+
+              <p style={es.seccionLabel}>Matrícula y procedencia</p>
+              <div style={es.form}>
+                <CamposProcedencia valores={form} set={setForm} />
               </div>
 
               <p style={es.seccionLabel}>Datos del acudiente (opcional)</p>
@@ -561,7 +778,7 @@ export default function Estudiantes() {
                         {excelPreview.slice(0, 10).map((alumno, i) => (
                           <tr key={i} style={es.tr}>
                             <td style={{ ...es.td, color: '#bbb', fontSize: '12px' }}>{i + 1}</td>
-                            <td style={es.td}>{alumno.nombre}</td>
+                            <td style={es.td}>{formatearApellidoPrimero(alumno.nombre)}</td>
                             <td style={es.td}>{alumno.email}</td>
                             <td style={es.td}>{alumno.tipo_documento ? `${alumno.tipo_documento} ${alumno.numero_documento || ''}` : '—'}</td>
                             <td style={es.td}>{alumno.acudiente_email || (alumno.acudiente_nombre ? `${alumno.acudiente_nombre} (sin correo)` : '—')}</td>
@@ -633,7 +850,12 @@ export default function Estudiantes() {
               <tbody>
                 {estudiantesFiltrados.map(e => (
                   <tr key={e.id} style={es.tr}>
-                    <td style={es.td}>{e.nombre}</td>
+                    <td style={es.td}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Avatar nombre={e.nombre} fotoUrl={e.foto_url} />
+                        {formatearApellidoPrimero(e.nombre)}
+                      </div>
+                    </td>
                     <td style={es.td}>{e.email}</td>
                     <td style={es.td}>{e.tipo_documento ? `${e.tipo_documento} ${e.numero_documento || ''}` : <span style={{ color: '#ccc', fontSize: '12px' }}>—</span>}</td>
                     <td style={es.td}>{e.nombre_grupo ? `${e.grado}° ${e.nombre_grupo}` : '—'}</td>
@@ -650,6 +872,8 @@ export default function Estudiantes() {
                     </td>
                     <td style={es.td}>
                       <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={() => abrirFicha(e)} style={es.btnFicha}>Ver ficha</button>
+                        <button onClick={() => abrirFichaMedica(e)} style={es.btnFicha}>Ficha médica</button>
                         <button onClick={() => abrirEdicion(e)} style={es.btnEditar}>Editar</button>
                         <button onClick={() => handleDesactivar(e.id)} style={es.btnPeligro}>Desactivar</button>
                       </div>
@@ -706,7 +930,12 @@ const es = {
   previsualizacion: { background: '#fafafa', borderRadius: '10px', border: '1px solid #eee', overflow: 'hidden' },
   tagPass:    { background: '#f3f4f6', color: '#666', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' },
   btnEditar:  { background: '#f0f0ff', border: '1px solid #c5cae9', color: '#5c6bc0', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
+  btnFicha:   { background: '#fff', border: '1px solid #ddd', color: '#555', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
   labelPanel: { display: 'block', fontSize: '11px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' },
   checkboxRow: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#555', cursor: 'pointer' },
   inputPanel: { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' },
+  // Ficha básica
+  fichaModal: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '360px', maxWidth: '90vw', background: '#fff', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 101, padding: '28px 24px 20px' },
+  fichaMedicaModal: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '680px', maxWidth: '94vw', maxHeight: '86vh', background: '#fff', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 101, padding: '24px', display: 'flex', flexDirection: 'column' },
+  fichaCerrar: { position: 'absolute', top: '14px', right: '14px', background: '#f5f5f5', border: 'none', width: '26px', height: '26px', borderRadius: '50%', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: '#888', fontFamily: 'inherit' },
 };

@@ -563,6 +563,12 @@ export default function Actividad() {
   const [tiempoSeg, setTiempoSeg] = useState(null);
   const [inicio] = useState(Date.now());
 
+  // Solo para tipo 'entrega_archivo'
+  const [entrega, setEntrega] = useState(null);
+  const [archivoSeleccionado, setArchivoSeleccionado] = useState(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [mensajeEntrega, setMensajeEntrega] = useState('');
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -570,12 +576,26 @@ export default function Actividad() {
         const act = resp.data.data;
         const contenido = typeof act.contenido === 'string' ? JSON.parse(act.contenido) : act.contenido;
         setActividad({ ...act, contenido });
-        setTiempoSeg(act.tiempo_limite_minutos * 60);
-        const rRes = await axiosAuth.get(`/api/actividades/${id}/resultado`);
-        if (rRes.data.data?.length > 0) {
-          const ultimo = rRes.data.data[0];
-          if (ultimo.intento_numero >= act.intentos_permitidos) {
-            setResultado({ nota: ultimo.nota, intento: ultimo.intento_numero });
+
+        if (act.tipo === 'entrega_archivo') {
+          const rRes = await axiosAuth.get(`/api/actividades/${id}/resultado`);
+          const ultimo = rRes.data.data?.[0];
+          if (ultimo) {
+            setEntrega({
+              resultado_id: ultimo.id,
+              nota: ultimo.nota !== null ? parseFloat(ultimo.nota) : null,
+              comentario_docente: ultimo.comentario_docente,
+              archivo_nombre_original: ultimo.archivo_nombre_original,
+            });
+          }
+        } else {
+          setTiempoSeg(act.tiempo_limite_minutos * 60);
+          const rRes = await axiosAuth.get(`/api/actividades/${id}/resultado`);
+          if (rRes.data.data?.length > 0) {
+            const ultimo = rRes.data.data[0];
+            if (ultimo.intento_numero >= act.intentos_permitidos) {
+              setResultado({ nota: ultimo.nota, intento: ultimo.intento_numero });
+            }
           }
         }
       } catch { setError('No se pudo cargar la actividad.'); }
@@ -583,6 +603,22 @@ export default function Actividad() {
     }
     cargar();
   }, [id]);
+
+  async function subirEntrega() {
+    if (!archivoSeleccionado) { setMensajeEntrega('Selecciona un archivo primero'); return; }
+    setSubiendo(true); setMensajeEntrega('');
+    try {
+      const formData = new FormData();
+      formData.append('archivo', archivoSeleccionado);
+      const resp = await axiosAuth.post(`/api/actividades/${id}/entregar`, formData);
+      setEntrega({ resultado_id: resp.data.data.id, nota: null, comentario_docente: null, archivo_nombre_original: archivoSeleccionado.name });
+      setArchivoSeleccionado(null);
+    } catch (err) {
+      setMensajeEntrega(err.response?.data?.error || 'Error al subir el archivo');
+    } finally {
+      setSubiendo(false);
+    }
+  }
 
   const enviar = useCallback(async (respsFinal) => {
     if (enviando || enviado) return;
@@ -600,15 +636,74 @@ export default function Actividad() {
   }, [id, inicio, enviado, enviando]);
 
   useEffect(() => {
-    if (tiempoSeg === null || enviado) return;
+    if (tiempoSeg === null || enviado || actividad?.tipo === 'entrega_archivo') return;
     if (tiempoSeg <= 0) { enviar(respuestas); return; }
     const t = setTimeout(() => setTiempoSeg(s => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [tiempoSeg, enviado, enviar, respuestas]);
+  }, [tiempoSeg, enviado, enviar, respuestas, actividad]);
 
   if (cargando) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5' }}><p style={{ color: '#888' }}>Cargando actividad...</p></div>;
   if (error) return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', flexDirection: 'column', gap: 16 }}><p style={{ color: '#c62828' }}>{error}</p><button onClick={() => navigate(-1)} style={es.btnVolver}>← Volver</button></div>;
   if (resultado) return <PantallaResultado nota={resultado.nota} intento={resultado.intento} actividadId={id} onVolver={() => navigate(-1)} />;
+
+  if (actividad?.tipo === 'entrega_archivo') {
+    const calificada = entrega?.nota !== null && entrega?.nota !== undefined;
+    return (
+      <div style={es.pagina}>
+        <Navbar titulo={actividad?.titulo || 'Actividad'} />
+        <div style={es.contenido}>
+          <div style={es.header}>
+            <div>
+              <h2 style={es.titulo}>{actividad.titulo}</h2>
+              {actividad.descripcion && <p style={es.desc}>{actividad.descripcion}</p>}
+            </div>
+          </div>
+          <div style={es.card}>
+            {actividad.contenido?.instrucciones && (
+              <p style={{ color: '#444', fontSize: 15, lineHeight: 1.6, margin: '0 0 18px' }}>{actividad.contenido.instrucciones}</p>
+            )}
+
+            {calificada ? (
+              <div>
+                <p style={{ fontSize: 13, color: '#888', margin: '0 0 4px' }}>Tu nota</p>
+                <div style={{ fontSize: 48, fontWeight: 900, color: '#667eea', marginBottom: 12 }}>{entrega.nota}</div>
+                {entrega.comentario_docente && (
+                  <div style={{ background: '#f9f9ff', border: '1px solid #e8e8ff', borderRadius: 10, padding: '12px 16px', color: '#444', fontSize: 14 }}>
+                    <strong>Comentario del docente:</strong> {entrega.comentario_docente}
+                  </div>
+                )}
+              </div>
+            ) : entrega ? (
+              <div>
+                <div style={{ background: '#fff8e1', color: '#e65100', borderRadius: 10, padding: '12px 16px', fontWeight: 600, marginBottom: 14 }}>
+                  Ya enviaste "{entrega.archivo_nombre_original}" — pendiente de revisión del docente.
+                </div>
+                <p style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>¿Te equivocaste de archivo? Puedes reemplazarlo mientras no haya sido calificado.</p>
+                <input type="file" onChange={e => setArchivoSeleccionado(e.target.files[0])} style={{ marginBottom: 10, display: 'block' }} />
+                <button onClick={subirEntrega} disabled={subiendo || !archivoSeleccionado} style={es.btnEnviar}>
+                  {subiendo ? 'Subiendo...' : 'Reemplazar archivo'}
+                </button>
+                {mensajeEntrega && <p style={{ color: '#c62828', fontSize: 13, marginTop: 8 }}>{mensajeEntrega}</p>}
+              </div>
+            ) : (
+              <div>
+                <label style={{ display: 'block', marginBottom: 10, fontSize: 13, fontWeight: 600, color: '#555' }}>
+                  Adjunta tu archivo (PDF, Word, PowerPoint, Excel o imagen — máx. 15 MB)
+                </label>
+                <input type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                  onChange={e => setArchivoSeleccionado(e.target.files[0])} style={{ marginBottom: 14, display: 'block' }} />
+                <button onClick={subirEntrega} disabled={subiendo || !archivoSeleccionado} style={es.btnEnviar}>
+                  {subiendo ? 'Subiendo...' : 'Subir entrega'}
+                </button>
+                {mensajeEntrega && <p style={{ color: '#c62828', fontSize: 13, marginTop: 8 }}>{mensajeEntrega}</p>}
+              </div>
+            )}
+          </div>
+          <button onClick={() => navigate(-1)} style={es.btnVolver}>← Volver</button>
+        </div>
+      </div>
+    );
+  }
 
   const tiempoAlerta = tiempoSeg !== null && tiempoSeg < 60;
   const tipo = actividad?.tipo;

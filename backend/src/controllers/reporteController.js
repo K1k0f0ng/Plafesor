@@ -1,4 +1,5 @@
 const db = require('../database');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 // GET /api/reportes/docente/:id — todas las actividades del docente con estadísticas
 async function reporteDocente(req, res) {
@@ -80,7 +81,7 @@ async function reporteGrupoMateria(req, res) {
         AND a.grupo_id = ?
         AND a.materia_id = ?
         AND a.activa = TRUE
-      ORDER BY u.nombre ASC, a.periodo ASC, a.titulo ASC
+      ORDER BY ${ordenApellido('u.nombre')} ASC, a.periodo ASC, a.titulo ASC
     `, [grupo_id, grupo_id, materia_id]);
 
     res.json({ data: filas });
@@ -170,7 +171,7 @@ async function alertasDocente(req, res) {
         AND mejores.nota < 3.5
       GROUP BY mejores.estudiante_id, a.materia_id, a.grupo_id
       HAVING COUNT(DISTINCT a.id) >= 2
-      ORDER BY COUNT(DISTINCT a.id) DESC, u.nombre ASC
+      ORDER BY COUNT(DISTINCT a.id) DESC, ${ordenApellido('u.nombre')} ASC
     `, [docente_id]);
 
     res.json({ data: filas });
@@ -211,7 +212,7 @@ async function alertasColegio(req, res) {
         AND mejores.nota < 3.5
       GROUP BY mejores.estudiante_id, a.materia_id, a.grupo_id
       HAVING COUNT(DISTINCT a.id) >= 2
-      ORDER BY COUNT(DISTINCT a.id) DESC, u.nombre ASC
+      ORDER BY COUNT(DISTINCT a.id) DESC, ${ordenApellido('u.nombre')} ASC
     `, [colegio_id]);
 
     res.json({ data: filas });

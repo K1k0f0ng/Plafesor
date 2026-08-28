@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconBarChart, IconArrowLeft, IconBookOpen, IconTrendUp } from '../components/Icons';
+import { FichaMedicaLectura } from '../components/FichaMedica';
 
 const NIVEL_COLOR = { Bajo: '#ef5350', Básico: '#ffa726', Alto: '#66bb6a', Superior: '#42a5f5' };
 const NIVEL_BG    = { Bajo: '#ffebee', Básico: '#fff8e1', Alto: '#e8f5e9', Superior: '#e3f2fd' };
@@ -36,6 +37,26 @@ export default function HistorialEstudiante() {
   const [datos,    setDatos]    = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error,    setError]    = useState('');
+
+  const puedeVerFichaMedica = ['admin', 'docente', 'director', 'padre'].includes(usuario.rol);
+  const [mostrarFichaMedica, setMostrarFichaMedica] = useState(false);
+  const [fichaMedicaDatos, setFichaMedicaDatos] = useState(null);
+  const [cargandoFichaMedica, setCargandoFichaMedica] = useState(false);
+
+  async function toggleFichaMedica() {
+    if (mostrarFichaMedica) { setMostrarFichaMedica(false); return; }
+    setMostrarFichaMedica(true);
+    if (fichaMedicaDatos) return;
+    setCargandoFichaMedica(true);
+    try {
+      const r = await axiosAuth.get(`/api/estudiantes/${estudianteId}/ficha-medica`);
+      setFichaMedicaDatos(r.data.data || {});
+    } catch {
+      setFichaMedicaDatos({});
+    } finally {
+      setCargandoFichaMedica(false);
+    }
+  }
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -94,7 +115,23 @@ export default function HistorialEstudiante() {
             <h2 style={es.titulo}>{estudiante}</h2>
             <p style={es.subtitulo}>{grado ? `Grado ${grado}° · ` : ''}{grupo} · {colegio}</p>
           </div>
+          {puedeVerFichaMedica && (
+            <button onClick={toggleFichaMedica} style={es.btnFichaMedica}>
+              {mostrarFichaMedica ? 'Ocultar ficha médica' : 'Ver ficha médica'}
+            </button>
+          )}
         </div>
+
+        {puedeVerFichaMedica && mostrarFichaMedica && (
+          <div style={{ ...es.card, marginBottom: 20 }}>
+            <h3 style={es.seccion}>Ficha médica</h3>
+            {cargandoFichaMedica ? (
+              <p style={{ color: '#888', fontSize: 14 }}>Cargando...</p>
+            ) : (
+              <FichaMedicaLectura datos={fichaMedicaDatos} />
+            )}
+          </div>
+        )}
 
         {/* KPIs superiores */}
         <div style={es.kpiGrid}>
@@ -250,7 +287,8 @@ export default function HistorialEstudiante() {
 const es = {
   pagina:    { minHeight: '100vh', background: '#f0f2f5' },
   contenido: { padding: '24px', maxWidth: '1100px', margin: '0 auto' },
-  header:    { marginBottom: 20 },
+  header:    { marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 },
+  btnFichaMedica: { background: '#fff', border: '1px solid #ddd', color: '#555', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   btnVolver: { background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: 0, fontFamily: 'inherit', marginBottom: 6, display: 'flex', alignItems: 'center' },
   titulo:    { fontSize: 22, fontWeight: 800, color: '#333', margin: '0 0 4px' },
   subtitulo: { fontSize: 13, color: '#888', margin: 0 },

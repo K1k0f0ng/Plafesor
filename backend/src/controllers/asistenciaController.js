@@ -1,4 +1,5 @@
 const db = require('../database');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 // POST /api/asistencias — guardar asistencia masiva de un grupo en una fecha
 async function registrar(req, res) {
@@ -53,7 +54,7 @@ async function obtenerPorFecha(req, res) {
       LEFT JOIN asistencias a
         ON a.estudiante_id = u.id AND a.grupo_id = ? AND a.fecha = ?
       WHERE eg.grupo_id = ?
-      ORDER BY u.nombre ASC
+      ORDER BY ${ordenApellido('u.nombre')} ASC
     `, [grupo_id, fechaConsulta, grupo_id]);
 
     res.json({ data: filas });
@@ -87,7 +88,7 @@ async function resumenGrupo(req, res) {
       LEFT JOIN asistencias a ON a.estudiante_id = u.id AND a.grupo_id = ?
       WHERE eg.grupo_id = ?
       GROUP BY u.id, u.nombre
-      ORDER BY ausentes DESC, u.nombre ASC
+      ORDER BY ausentes DESC, ${ordenApellido('u.nombre')} ASC
     `, [grupo_id, grupo_id]);
 
     res.json({ data: filas });

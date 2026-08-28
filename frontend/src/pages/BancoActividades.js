@@ -14,6 +14,7 @@ const TIPO_LABEL = {
   ordenar_letras:     'Ordenar letras',
   ordenar_palabras:   'Ordenar palabras',
   sopa_letras:        'Sopa de letras',
+  entrega_archivo:    'Entrega de trabajo',
 };
 
 export default function BancoActividades() {
@@ -31,6 +32,7 @@ export default function BancoActividades() {
   const [copiando,     setCopiando]     = useState(null);   // actividad seleccionada
   const [grupoDestino, setGrupoDestino] = useState('');
   const [periodoDestino, setPeriodoDestino] = useState('');
+  const [porcentajeDestino, setPorcentajeDestino] = useState('');
   const [mensajeCopia, setMensajeCopia] = useState('');
   const [errorCopia,   setErrorCopia]   = useState('');
 
@@ -66,8 +68,8 @@ export default function BancoActividades() {
   useEffect(() => { cargarActividades(); }, [cargarActividades]);
 
   async function confirmarCopia() {
-    if (!grupoDestino || !periodoDestino) {
-      setErrorCopia('Selecciona un grupo y un período de destino.');
+    if (!grupoDestino || !periodoDestino || !porcentajeDestino) {
+      setErrorCopia('Selecciona un grupo, un período y un porcentaje de destino.');
       return;
     }
     setErrorCopia('');
@@ -75,11 +77,13 @@ export default function BancoActividades() {
       await axiosAuth.post(`/api/actividades/${copiando.id}/copiar`, {
         grupo_id: parseInt(grupoDestino),
         periodo:  periodoDestino,
+        porcentaje: parseFloat(porcentajeDestino),
       });
       setMensajeCopia(`"${copiando.titulo}" copiada a tus actividades.`);
       setCopiando(null);
       setGrupoDestino('');
       setPeriodoDestino('');
+      setPorcentajeDestino('');
     } catch (err) {
       setErrorCopia(err.response?.data?.error || 'Error al copiar. Intenta de nuevo.');
     }
@@ -179,8 +183,16 @@ export default function BancoActividades() {
               <label style={{ ...es.label, marginTop: 12 }}>Período destino</label>
               <select value={periodoDestino} onChange={e => setPeriodoDestino(e.target.value)} style={es.select}>
                 <option value="">— Selecciona un período —</option>
-                {['1','2','3'].map(p => <option key={p} value={p}>Período {p}</option>)}
+                {['1','2','3','4'].map(p => <option key={p} value={p}>Período {p}</option>)}
               </select>
+              <label style={{ ...es.label, marginTop: 12 }}>Porcentaje dentro del período (%)</label>
+              <input
+                type="number" min="1" max="100" step="1"
+                value={porcentajeDestino}
+                onChange={e => setPorcentajeDestino(e.target.value)}
+                placeholder="Ej: 25"
+                style={es.select}
+              />
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button onClick={confirmarCopia} style={es.btnConfirmar}>Copiar</button>
                 <button onClick={() => setCopiando(null)} style={es.btnCancelar}>Cancelar</button>

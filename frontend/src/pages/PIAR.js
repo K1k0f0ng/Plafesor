@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconAccessibility, IconDownload, IconBot } from '../components/Icons';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const CAMPOS = [
   { clave: 'contexto_estudiante',   label: 'Contexto del estudiante', ayuda: 'Hogar, aula, espacios, capacidades, gustos, intereses, apoyo familiar' },
@@ -186,7 +187,7 @@ export default function PIAR() {
             <option value="">— Selecciona un estudiante con PIAR —</option>
             {estudiantes.map(e => (
               <option key={e.estudiante_id} value={e.estudiante_id}>
-                {e.estudiante} {e.grado ? `— Grado ${e.grado}° ${e.grupo}` : ''}
+                {formatearApellidoPrimero(e.estudiante)} {e.grado ? `— Grado ${e.grado}° ${e.grupo}` : ''}
               </option>
             ))}
           </select>

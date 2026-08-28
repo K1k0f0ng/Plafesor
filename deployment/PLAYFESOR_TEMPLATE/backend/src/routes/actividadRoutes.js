@@ -11,6 +11,9 @@ router.get('/estudiante',   permitirRoles('estudiante'),                      ct
 router.post('/generar-ia',  permitirRoles('docente'),                         ctrl.generarConIA);
 router.get('/mis-materias',      permitirRoles('docente', 'director', 'admin'), ctrl.misMaterias);
 router.get('/libro',             permitirRoles('docente', 'director', 'admin'), ctrl.libroCalificaciones);
+router.get('/porcentaje-disponible', permitirRoles('docente'),                  ctrl.porcentajeDisponible);
+router.get('/componentes',       permitirRoles('docente', 'director', 'admin'), ctrl.getComponentes);
+router.post('/componentes',      permitirRoles('docente'),                      ctrl.guardarComponentes);
 router.post('/calificar-manual', permitirRoles('docente'),                      ctrl.calificarManual);
 router.get('/banco',             permitirRoles('docente'),                      ctrl.listarBanco);
 

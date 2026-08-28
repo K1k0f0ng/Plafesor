@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
+import { Avatar, FichaBasicaContenido } from '../components/FichaEstudiante';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const TIPOS_DOC_ESTUDIANTE = [
   { value: 'RC', label: 'Registro Civil de Nacimiento' },
@@ -218,6 +220,12 @@ export default function Estudiantes() {
   const [editando,   setEditando]   = useState(null);
   const [editForm,   setEditForm]   = useState(FORM_VACIO);
   const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  // Ficha básica (foto, curso, acudiente, director de grupo)
+  const [fichaEstudiante, setFichaEstudiante] = useState(null);
+  const [fichaDatos, setFichaDatos] = useState(null);
+  const [cargandoFicha, setCargandoFicha] = useState(false);
 
   // Importación masiva (Excel)
   const [excelGrupoId, setExcelGrupoId] = useState('');
@@ -293,7 +301,7 @@ export default function Estudiantes() {
     ws['!cols'] = headers.map(h => ({ wch: Math.max(18, Math.min(38, h.length)) }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Alumnos');
-    XLSX.writeFile(wb, 'plantilla_alumnos.xlsx');
+    XLSX.writeFile(wb, 'plantilla_alumnos_playfesor.xlsx');
   }
 
   function handleArchivoExcel(e) {
@@ -378,6 +386,40 @@ export default function Estudiantes() {
     }
   }
 
+  async function abrirFicha(est) {
+    setFichaEstudiante(est);
+    setFichaDatos(null);
+    setCargandoFicha(true);
+    try {
+      const r = await axiosAuth.get(`/api/estudiantes/${est.id}/ficha`);
+      setFichaDatos(r.data.data);
+    } catch {
+      setFichaDatos({ error: true });
+    } finally {
+      setCargandoFicha(false);
+    }
+  }
+
+  async function handleSubirFoto(id, archivo) {
+    if (!archivo) return;
+    setSubiendoFoto(true); setError('');
+    try {
+      const formData = new FormData();
+      formData.append('foto', archivo);
+      const r = await axiosAuth.post(`/api/estudiantes/${id}/foto`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setEditando(prev => (prev && prev.id === id ? { ...prev, foto_url: r.data.data.foto_url } : prev));
+      await cargar();
+      setMensaje('Foto actualizada correctamente');
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al subir la foto');
+    } finally {
+      setSubiendoFoto(false);
+    }
+  }
+
   async function handleDesactivar(id) {
     if (!window.confirm('¿Desactivar este estudiante?')) return;
     try {
@@ -404,13 +446,28 @@ export default function Estudiantes() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: 'linear-gradient(135deg,var(--color-primario),var(--color-secundario))', color: '#fff' }}>
               <div>
                 <div style={{ fontWeight: '800', fontSize: '15px' }}>Editar estudiante</div>
-                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '2px' }}>{editando.nombre}</div>
+                <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '2px' }}>{formatearApellidoPrimero(editando.nombre)}</div>
               </div>
               <button onClick={() => setEditando(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '14px', fontWeight: '700', fontFamily: 'inherit' }}>✕</button>
             </div>
 
             <div style={{ padding: '24px', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {error && <div style={es.errorBox}>{error}</div>}
+
+              <p style={es.seccionLabel}>Foto del alumno</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <Avatar nombre={editando.nombre} fotoUrl={editando.foto_url} size={56} />
+                <div>
+                  <input
+                    type="file" accept="image/jpeg,image/png,image/webp" id="fotoEstudiante"
+                    style={{ display: 'none' }}
+                    onChange={e => handleSubirFoto(editando.id, e.target.files[0])}
+                  />
+                  <label htmlFor="fotoEstudiante" style={{ ...es.btnEditar, cursor: subiendoFoto ? 'wait' : 'pointer', opacity: subiendoFoto ? 0.6 : 1 }}>
+                    {subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}
+                  </label>
+                </div>
+              </div>
 
               <p style={es.seccionLabel}>Datos del alumno</p>
               <div style={es.form}>
@@ -441,6 +498,18 @@ export default function Estudiantes() {
           </div>
         </>
       )}
+
+      {/* Modal — ficha básica del estudiante */}
+      {fichaEstudiante && (
+        <>
+          <div onClick={() => setFichaEstudiante(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)', zIndex: 100 }} />
+          <div style={es.fichaModal}>
+            <button onClick={() => setFichaEstudiante(null)} style={es.fichaCerrar}>✕</button>
+            <FichaBasicaContenido datos={fichaDatos} cargando={cargandoFicha} />
+          </div>
+        </>
+      )}
+
       <div style={es.contenido}>
         <button onClick={() => navigate('/dashboard')} style={es.btnVolver}>← Volver al panel</button>
 
@@ -561,7 +630,7 @@ export default function Estudiantes() {
                         {excelPreview.slice(0, 10).map((alumno, i) => (
                           <tr key={i} style={es.tr}>
                             <td style={{ ...es.td, color: '#bbb', fontSize: '12px' }}>{i + 1}</td>
-                            <td style={es.td}>{alumno.nombre}</td>
+                            <td style={es.td}>{formatearApellidoPrimero(alumno.nombre)}</td>
                             <td style={es.td}>{alumno.email}</td>
                             <td style={es.td}>{alumno.tipo_documento ? `${alumno.tipo_documento} ${alumno.numero_documento || ''}` : '—'}</td>
                             <td style={es.td}>{alumno.acudiente_email || (alumno.acudiente_nombre ? `${alumno.acudiente_nombre} (sin correo)` : '—')}</td>
@@ -633,7 +702,12 @@ export default function Estudiantes() {
               <tbody>
                 {estudiantesFiltrados.map(e => (
                   <tr key={e.id} style={es.tr}>
-                    <td style={es.td}>{e.nombre}</td>
+                    <td style={es.td}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Avatar nombre={e.nombre} fotoUrl={e.foto_url} />
+                        {formatearApellidoPrimero(e.nombre)}
+                      </div>
+                    </td>
                     <td style={es.td}>{e.email}</td>
                     <td style={es.td}>{e.tipo_documento ? `${e.tipo_documento} ${e.numero_documento || ''}` : <span style={{ color: '#ccc', fontSize: '12px' }}>—</span>}</td>
                     <td style={es.td}>{e.nombre_grupo ? `${e.grado}° ${e.nombre_grupo}` : '—'}</td>
@@ -650,6 +724,7 @@ export default function Estudiantes() {
                     </td>
                     <td style={es.td}>
                       <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={() => abrirFicha(e)} style={es.btnFicha}>Ver ficha</button>
                         <button onClick={() => abrirEdicion(e)} style={es.btnEditar}>Editar</button>
                         <button onClick={() => handleDesactivar(e.id)} style={es.btnPeligro}>Desactivar</button>
                       </div>
@@ -706,7 +781,11 @@ const es = {
   previsualizacion: { background: '#fafafa', borderRadius: '10px', border: '1px solid #eee', overflow: 'hidden' },
   tagPass:    { background: '#f3f4f6', color: '#666', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' },
   btnEditar:  { background: '#f0f0ff', border: '1px solid #c5cae9', color: '#5c6bc0', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
+  btnFicha:   { background: '#fff', border: '1px solid #ddd', color: '#555', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
   labelPanel: { display: 'block', fontSize: '11px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' },
   checkboxRow: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#555', cursor: 'pointer' },
   inputPanel: { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' },
+  // Ficha básica
+  fichaModal: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '360px', maxWidth: '90vw', background: '#fff', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.2)', zIndex: 101, padding: '28px 24px 20px' },
+  fichaCerrar: { position: 'absolute', top: '14px', right: '14px', background: '#f5f5f5', border: 'none', width: '26px', height: '26px', borderRadius: '50%', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: '#888', fontFamily: 'inherit' },
 };

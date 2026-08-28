@@ -11,5 +11,7 @@ router.post('/importar',     permitirRoles('admin'), ctrl.importar);
 router.put('/:id',           permitirRoles('admin'), ctrl.actualizar);
 router.delete('/:id',        permitirRoles('admin'), ctrl.eliminar);
 router.get('/:id/historial', permitirRoles('admin', 'docente', 'director', 'estudiante', 'padre'), ctrl.historial);
+router.get('/:id/ficha',     permitirRoles('admin', 'docente', 'director'), ctrl.ficha);
+router.post('/:id/foto',     permitirRoles('admin'), ctrl.subirFoto);
 
 module.exports = router;

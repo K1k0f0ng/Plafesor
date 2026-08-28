@@ -1,4 +1,5 @@
 const db = require('../database');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 const TIPOS_VALIDOS = ['positiva', 'mejora', 'neutral'];
 
@@ -20,7 +21,7 @@ async function estudiantesDelGrupo(req, res) {
        FROM estudiante_grupos eg
        JOIN usuarios u ON u.id = eg.estudiante_id
        WHERE eg.grupo_id = ? AND u.activo = TRUE
-       ORDER BY u.nombre ASC`,
+       ORDER BY ${ordenApellido('u.nombre')} ASC`,
       [grupo_id]
     );
     res.json({ data: estudiantes });

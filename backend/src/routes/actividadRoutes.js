@@ -11,10 +11,18 @@ router.get('/estudiante',   permitirRoles('estudiante'),                      ct
 router.post('/generar-ia',  permitirRoles('docente'),                         ctrl.generarConIA);
 router.get('/mis-materias',      permitirRoles('docente', 'director', 'admin'), ctrl.misMaterias);
 router.get('/libro',             permitirRoles('docente', 'director', 'admin'), ctrl.libroCalificaciones);
+router.get('/porcentaje-disponible', permitirRoles('docente'),                  ctrl.porcentajeDisponible);
+router.get('/componentes',       permitirRoles('docente', 'director', 'admin'), ctrl.getComponentes);
+router.post('/componentes',      permitirRoles('docente'),                      ctrl.guardarComponentes);
 router.post('/calificar-manual', permitirRoles('docente'),                      ctrl.calificarManual);
 router.get('/banco',             permitirRoles('docente'),                      ctrl.listarBanco);
 
+router.post('/entregas/:resultadoId/calificar', permitirRoles('docente'),                  ctrl.calificarEntrega);
+router.get('/entregas/:resultadoId/archivo',    permitirRoles('docente', 'estudiante'),    ctrl.descargarEntrega);
+
 router.get('/:id/pendientes',         permitirRoles('docente'),                    ctrl.obtenerPendientes);
+router.get('/:id/entregas',           permitirRoles('docente'),                    ctrl.listarEntregas);
+router.post('/:id/entregar',          permitirRoles('estudiante'),                 ctrl.entregarArchivo);
 router.post('/:id/copiar',            permitirRoles('docente'),                    ctrl.copiarDelBanco);
 router.post('/:id/generar-recuperacion', permitirRoles('estudiante'),              ctrl.generarRecuperacion);
 router.get('/:id',                 permitirRoles('admin', 'docente', 'estudiante'), ctrl.obtener);

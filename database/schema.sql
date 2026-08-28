@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   colegio_id INT,
   telefono_padres VARCHAR(20),
   requiere_piar BOOLEAN DEFAULT FALSE,
+  foto_url VARCHAR(255) NULL,
   -- Identificación (usada por estudiante y padre; el resto de roles la ignora)
   tipo_documento ENUM('RC','TI','CC','CE') NULL,
   numero_documento VARCHAR(30) NULL,
@@ -144,6 +145,66 @@ CREATE TABLE IF NOT EXISTS estudiantes_datos (
   discapacidad VARCHAR(255),
   grupo_etnico VARCHAR(150),
   victima_conflicto BOOLEAN DEFAULT FALSE,
+  -- Datos de matrícula / SIMAT
+  codigo_matricula VARCHAR(30) NULL,
+  lugar_expedicion_documento VARCHAR(100) NULL,
+  barrio VARCHAR(150) NULL,
+  ciudad VARCHAR(100) NULL,
+  comuna VARCHAR(50) NULL,
+  telefono VARCHAR(20) NULL,
+  celular VARCHAR(20) NULL,
+  estudiante_nuevo BOOLEAN NOT NULL DEFAULT TRUE,
+  colegio_procedencia VARCHAR(200) NULL,
+  anio_procedencia VARCHAR(20) NULL,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: fichas_medicas
+-- La diligencia admin/director en matrícula; docentes y padres/acudientes
+-- solo la consultan (por ejemplo, ante una emergencia).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS fichas_medicas (
+  estudiante_id INT PRIMARY KEY,
+  peso_kg DECIMAL(5,2) NULL,
+  estatura_cm DECIMAL(5,1) NULL,
+  tipo_sangre VARCHAR(5) NULL,
+  -- Contactos e información para emergencias
+  nombre_padre VARCHAR(150) NULL,
+  telefono_padre VARCHAR(20) NULL,
+  nombre_madre VARCHAR(150) NULL,
+  telefono_madre VARCHAR(20) NULL,
+  pediatra VARCHAR(150) NULL,
+  telefono_pediatra VARCHAR(20) NULL,
+  clinica_preferencia VARCHAR(200) NULL,
+  eps VARCHAR(150) NULL,
+  numero_afiliacion VARCHAR(50) NULL,
+  seguro_accidentes BOOLEAN NULL,
+  -- Esquema de vacunación
+  esquema_completo BOOLEAN NULL,
+  refuerzo_5_anios BOOLEAN NULL,
+  fiebre_amarilla BOOLEAN NULL,
+  fecha_vacunacion DATE NULL,
+  -- Antecedentes personales
+  enfermedad_ojos BOOLEAN NULL,
+  detalles_ojos VARCHAR(255) NULL,
+  usa_lentes BOOLEAN NULL,
+  usa_protesis BOOLEAN NULL,
+  alergias TEXT NULL,
+  tratamiento_alergias TEXT NULL,
+  cirugias TEXT NULL,
+  convulsiones_perdida_conocimiento BOOLEAN NULL,
+  enfermedad_actual TEXT NULL,
+  medicamentos_prohibidos TEXT NULL,
+  puede_recibir_acetaminofen BOOLEAN NULL,
+  condiciones_especiales TEXT NULL,
+  -- Antecedentes familiares
+  antecedente_diabetes BOOLEAN NULL,
+  antecedente_cancer BOOLEAN NULL,
+  antecedente_hipertension BOOLEAN NULL,
+  antecedente_cardiovascular BOOLEAN NULL,
+  antecedente_otro VARCHAR(255) NULL,
   actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -165,6 +226,7 @@ CREATE TABLE IF NOT EXISTS actividades (
     'ordenar_letras',
     'ordenar_palabras',
     'sopa_letras',
+    'entrega_archivo',
     'manual'
   ) NOT NULL,
   contenido JSON NOT NULL,
@@ -174,10 +236,19 @@ CREATE TABLE IF NOT EXISTS actividades (
   -- ordenar_pasos:       { instruccion, pasos: [{id, texto, orden}] }
   -- completar_espacios:  { texto_con_blancos, respuestas: [{id, respuesta}] }
   -- relacionar_columnas: { columna_a: [{id, texto}], columna_b: [{id, texto, par_id}] }
+  -- entrega_archivo:     { instrucciones, categoria } — el estudiante sube un
+  --                      archivo (ver resultados_actividades.archivo_url) y
+  --                      el docente lo califica manualmente
   docente_id INT NOT NULL,
   materia_id INT NOT NULL,
   grupo_id INT NOT NULL,
   periodo ENUM('1','2','3','4') NOT NULL,
+  -- Peso de esta actividad en el 80% de "actividades" de la nota final de la
+  -- materia (ver componentes_evaluacion). Los porcentajes de las actividades
+  -- de un mismo grupo+materia+período deben sumar 100 entre ellas.
+  porcentaje DECIMAL(5,2) NOT NULL DEFAULT 0,
+  fecha_inicio DATE NULL,
+  fecha_cierre DATE NULL,
   grado_minimo ENUM('5','6','7','8','9') NOT NULL,
   grado_maximo ENUM('5','6','7','8','9') NOT NULL,
   tiempo_limite_minutos INT DEFAULT 30,
@@ -198,7 +269,9 @@ CREATE TABLE IF NOT EXISTS resultados_actividades (
   estudiante_id INT NOT NULL,
   actividad_id INT NOT NULL,
   respuestas JSON NOT NULL,
-  nota DECIMAL(3,1) NOT NULL,
+  -- NULL solo en actividades tipo 'entrega_archivo' mientras el docente
+  -- no la ha calificado todavía (entrega pendiente de revisión)
+  nota DECIMAL(3,1) NULL,
   -- Escala MEN Colombia:
   -- 1.0 - 2.9: Desempeño Bajo
   -- 3.0 - 3.9: Desempeño Básico
@@ -206,9 +279,36 @@ CREATE TABLE IF NOT EXISTS resultados_actividades (
   -- 4.6 - 5.0: Desempeño Superior
   tiempo_empleado_segundos INT,
   intento_numero INT DEFAULT 1,
+  -- Solo para actividades tipo 'entrega_archivo':
+  archivo_url VARCHAR(255) NULL,
+  archivo_nombre_original VARCHAR(255) NULL,
+  comentario_docente TEXT NULL,
   completada_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (actividad_id) REFERENCES actividades(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: componentes_evaluacion
+-- Autoevaluación / coevaluación / heteroevaluación — una nota manual por
+-- estudiante, materia, grupo y período (casillas fijas del libro de notas,
+-- no son actividades). Junto con el promedio ponderado de actividades
+-- conforman la nota final: actividades 80%, autoeval. 5%, coeval. 5%,
+-- heteroeval. 10%.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS componentes_evaluacion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  estudiante_id INT NOT NULL,
+  materia_id INT NOT NULL,
+  grupo_id INT NOT NULL,
+  periodo ENUM('1','2','3','4') NOT NULL,
+  tipo ENUM('autoevaluacion','coevaluacion','heteroevaluacion') NOT NULL,
+  nota DECIMAL(3,1) NOT NULL,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_componente (estudiante_id, materia_id, grupo_id, periodo, tipo),
+  FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (materia_id) REFERENCES materias(id) ON DELETE CASCADE,
+  FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
@@ -287,6 +387,53 @@ CREATE TABLE IF NOT EXISTS padre_estudiante (
   UNIQUE KEY unique_padre_hijo (padre_id, estudiante_id),
   FOREIGN KEY (padre_id) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- MENSAJERÍA INTERNA
+-- Bandeja de correo bidireccional entre colegio (docente/director/admin) y
+-- padres, con hilos de respuesta, adjuntos y carpetas (bandeja de entrada,
+-- enviados, archivados, eliminados, borradores). Canal adicional a las
+-- notificaciones de WhatsApp — no las reemplaza.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS mensajes_internos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  remitente_id INT NOT NULL,
+  hilo_id INT NULL,           -- raíz del hilo (NULL si este mensaje ES la raíz)
+  responde_a_id INT NULL,     -- mensaje inmediato al que responde (NULL si es nuevo)
+  asunto VARCHAR(200) NOT NULL,
+  cuerpo TEXT NOT NULL,
+  estado ENUM('borrador','enviado') NOT NULL DEFAULT 'enviado',
+  destinatarios_borrador JSON NULL,  -- ids elegidos mientras es borrador
+  remitente_eliminado BOOLEAN NOT NULL DEFAULT FALSE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE,
+  FOREIGN KEY (remitente_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (hilo_id) REFERENCES mensajes_internos(id) ON DELETE SET NULL,
+  FOREIGN KEY (responde_a_id) REFERENCES mensajes_internos(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Un registro por cada destinatario de un mensaje enviado — estado de
+-- lectura y carpeta, independiente para cada uno
+CREATE TABLE IF NOT EXISTS mensajes_destinatarios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  mensaje_id INT NOT NULL,
+  destinatario_id INT NOT NULL,
+  leido BOOLEAN NOT NULL DEFAULT FALSE,
+  leido_en TIMESTAMP NULL,
+  carpeta ENUM('bandeja_entrada','archivado','eliminado') NOT NULL DEFAULT 'bandeja_entrada',
+  UNIQUE KEY unique_mensaje_destinatario (mensaje_id, destinatario_id),
+  FOREIGN KEY (mensaje_id) REFERENCES mensajes_internos(id) ON DELETE CASCADE,
+  FOREIGN KEY (destinatario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS mensajes_adjuntos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  mensaje_id INT NOT NULL,
+  archivo_url VARCHAR(255) NOT NULL,
+  archivo_nombre_original VARCHAR(255) NOT NULL,
+  FOREIGN KEY (mensaje_id) REFERENCES mensajes_internos(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

@@ -41,6 +41,14 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// La API sirve datos por usuario autenticado (notas, asignaciones, etc.) — nunca deben
+// quedar en la caché del navegador, o un usuario puede ver datos de una sesión anterior
+// (propia o de otra persona en el mismo equipo) hasta que la caché expire por su cuenta.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 // Límite de endpoints de IA: 5 solicitudes/minuto. Se aplica a nivel de app,
 // antes de que corra verificarToken() de cada router — así que req.usuario
 // todavía no existe aquí y la clave siempre termina siendo la IP (mismo

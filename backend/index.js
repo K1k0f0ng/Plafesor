@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ override: true });
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -40,6 +40,14 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// La API sirve datos por usuario autenticado (notas, asignaciones, etc.) — nunca deben
+// quedar en la caché del navegador, o un usuario puede ver datos de una sesión anterior
+// (propia o de otra persona en el mismo equipo) hasta que la caché expire por su cuenta.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 // Límite de endpoints de IA: 5 solicitudes/minuto. Se aplica a nivel de app,
 // antes de que corra verificarToken() de cada router — así que req.usuario
 // todavía no existe aquí y la clave siempre termina siendo la IP (mismo
@@ -57,6 +65,20 @@ const iaRateLimit = rateLimit({
 });
 
 app.use('/api/auth/login', loginRateLimit);
+
+// Límite del formulario público de demo (sin login): 5 solicitudes cada 15
+// minutos por IP — evita que un bot sature el correo de comercial.
+const demoRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' });
+  },
+});
+app.use('/api/contacto/demo', demoRateLimit);
 
 // Ruta de salud — confirma que el servidor está activo
 app.get('/', (req, res) => {
@@ -77,6 +99,7 @@ app.use('/api/piar',        iaRateLimit);
 app.use('/api/briefing',    iaRateLimit);
 app.use('/api/observaciones/generar', iaRateLimit);
 
+app.use('/api/contacto',    require('./src/routes/contactoRoutes'));
 app.use('/api/auth',        require('./src/routes/authRoutes'));
 app.use('/api/colegios',    require('./src/routes/colegioRoutes'));
 app.use('/api/grupos',      require('./src/routes/grupoRoutes'));
@@ -104,6 +127,7 @@ app.use('/api/anotaciones',      require('./src/routes/anotacionRoutes'));
 app.use('/api/observaciones',    require('./src/routes/observacionPeriodoRoutes'));
 app.use('/api/citaciones',       require('./src/routes/citacionRoutes'));
 app.use('/api/mensajes-masivos', require('./src/routes/mensajeMasivoRoutes'));
+app.use('/api/mensajes',         require('./src/routes/mensajeRoutes'));
 
 // Manejo global de errores
 app.use((err, req, res, next) => {

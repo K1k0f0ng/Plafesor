@@ -1,5 +1,6 @@
 const db = require('../database');
 const { generarPlanEstudiante } = require('../services/planMejoramientoService');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 // GET /api/planes/colegio/:colegio_id?estado=activo|superado|archivado
 async function listarPorColegio(req, res) {
@@ -36,7 +37,7 @@ async function listarPorColegio(req, res) {
         AND pr.materia_id    = pm.materia_id
         AND pr.grupo_id      = pm.grupo_id
       WHERE pm.colegio_id = ? AND pm.estado = ?
-      ORDER BY pr.score DESC, u.nombre ASC
+      ORDER BY pr.score DESC, ${ordenApellido('u.nombre')} ASC
     `, [parseInt(colegio_id), estadoFiltro]);
 
     res.json({ data: filas });

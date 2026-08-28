@@ -1,5 +1,27 @@
 const bcrypt = require('bcryptjs');
 const db = require('../database');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const { ordenApellido } = require('../utils/ordenNombre');
+
+const uploadsDirEstudiantes = path.join(__dirname, '../../uploads/estudiantes');
+if (!fs.existsSync(uploadsDirEstudiantes)) fs.mkdirSync(uploadsDirEstudiantes, { recursive: true });
+
+const uploadFoto = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDirEstudiantes,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `estudiante_${req.params.id}_${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/\.(jpe?g|png|webp)$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes (jpg, png, webp)'));
+  },
+}).single('foto');
 
 // Estos endpoints reciben JSON directamente (no solo desde el formulario ni
 // desde la plantilla Excel, que ya normalizan), así que se valida de nuevo
@@ -26,21 +48,30 @@ async function guardarDatosEstudiante(conn, estudianteId, datos) {
   const {
     fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
     discapacidad, grupo_etnico, victima_conflicto,
+    codigo_matricula, lugar_expedicion_documento, barrio, ciudad, comuna, telefono, celular,
+    estudiante_nuevo, colegio_procedencia, anio_procedencia,
   } = datos;
 
   await conn.query(
     `INSERT INTO estudiantes_datos
-       (estudiante_id, fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben, discapacidad, grupo_etnico, victima_conflicto)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (estudiante_id, fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben, discapacidad, grupo_etnico, victima_conflicto,
+        codigo_matricula, lugar_expedicion_documento, barrio, ciudad, comuna, telefono, celular, estudiante_nuevo, colegio_procedencia, anio_procedencia)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        fecha_nacimiento = VALUES(fecha_nacimiento), lugar_nacimiento = VALUES(lugar_nacimiento),
        genero = VALUES(genero), grupo_sanguineo = VALUES(grupo_sanguineo),
        direccion = VALUES(direccion), eps_sisben = VALUES(eps_sisben),
        discapacidad = VALUES(discapacidad), grupo_etnico = VALUES(grupo_etnico),
-       victima_conflicto = VALUES(victima_conflicto)`,
+       victima_conflicto = VALUES(victima_conflicto),
+       codigo_matricula = VALUES(codigo_matricula), lugar_expedicion_documento = VALUES(lugar_expedicion_documento),
+       barrio = VALUES(barrio), ciudad = VALUES(ciudad), comuna = VALUES(comuna),
+       telefono = VALUES(telefono), celular = VALUES(celular), estudiante_nuevo = VALUES(estudiante_nuevo),
+       colegio_procedencia = VALUES(colegio_procedencia), anio_procedencia = VALUES(anio_procedencia)`,
     [
       estudianteId, normalizarFecha(fecha_nacimiento), lugar_nacimiento || null, normalizarGenero(genero), grupo_sanguineo || null,
       direccion || null, eps_sisben || null, discapacidad || null, grupo_etnico || null, !!victima_conflicto,
+      codigo_matricula || null, lugar_expedicion_documento || null, barrio || null, ciudad || null, comuna || null,
+      telefono || null, celular || null, estudiante_nuevo !== false, colegio_procedencia || null, anio_procedencia || null,
     ]
   );
 }
@@ -88,12 +119,14 @@ async function listar(req, res) {
   const { grupo_id } = req.query;
   try {
     let sql = `
-      SELECT u.id, u.nombre, u.email, u.activo, u.colegio_id,
+      SELECT u.id, u.nombre, u.email, u.activo, u.colegio_id, u.foto_url,
              u.telefono_padres, u.requiere_piar, u.tipo_documento, u.numero_documento,
              eg.grupo_id,
              g.nombre AS nombre_grupo, g.grado,
              ed.fecha_nacimiento, ed.lugar_nacimiento, ed.genero, ed.grupo_sanguineo,
              ed.direccion, ed.eps_sisben, ed.discapacidad, ed.grupo_etnico, ed.victima_conflicto,
+             ed.codigo_matricula, ed.lugar_expedicion_documento, ed.barrio, ed.ciudad, ed.comuna,
+             ed.telefono, ed.celular, ed.estudiante_nuevo, ed.colegio_procedencia, ed.anio_procedencia,
              (
                SELECT GROUP_CONCAT(p.nombre SEPARATOR ', ')
                FROM padre_estudiante pe JOIN usuarios p ON p.id = pe.padre_id
@@ -111,7 +144,7 @@ async function listar(req, res) {
       sql += ' AND eg.grupo_id = ?';
       params.push(grupo_id);
     }
-    sql += ' ORDER BY u.nombre ASC';
+    sql += ` ORDER BY ${ordenApellido('u.nombre')} ASC`;
 
     const [filas] = await db.query(sql, params);
     res.json({ data: filas });
@@ -128,6 +161,8 @@ async function crear(req, res) {
     tipo_documento, numero_documento,
     fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
     discapacidad, grupo_etnico, victima_conflicto,
+    codigo_matricula, lugar_expedicion_documento, barrio, ciudad, comuna, telefono, celular,
+    estudiante_nuevo, colegio_procedencia, anio_procedencia,
     acudiente_nombre, acudiente_email, acudiente_password, acudiente_parentesco,
     acudiente_tipo_documento, acudiente_numero_documento,
   } = req.body;
@@ -160,6 +195,8 @@ async function crear(req, res) {
     await guardarDatosEstudiante(conn, estudianteId, {
       fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
       discapacidad, grupo_etnico, victima_conflicto,
+      codigo_matricula, lugar_expedicion_documento, barrio, ciudad, comuna, telefono, celular,
+      estudiante_nuevo, colegio_procedencia, anio_procedencia,
     });
 
     if (acudiente_email) {
@@ -233,6 +270,10 @@ async function importar(req, res) {
           direccion: est.direccion, eps_sisben: est.eps_sisben,
           discapacidad: est.discapacidad, grupo_etnico: est.grupo_etnico,
           victima_conflicto: est.victima_conflicto,
+          codigo_matricula: est.codigo_matricula, lugar_expedicion_documento: est.lugar_expedicion_documento,
+          barrio: est.barrio, ciudad: est.ciudad, comuna: est.comuna,
+          telefono: est.telefono, celular: est.celular, estudiante_nuevo: est.estudiante_nuevo,
+          colegio_procedencia: est.colegio_procedencia, anio_procedencia: est.anio_procedencia,
         });
 
         if (est.acudiente_email) {
@@ -272,6 +313,8 @@ async function actualizar(req, res) {
     tipo_documento, numero_documento,
     fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
     discapacidad, grupo_etnico, victima_conflicto,
+    codigo_matricula, lugar_expedicion_documento, barrio, ciudad, comuna, telefono, celular,
+    estudiante_nuevo, colegio_procedencia, anio_procedencia,
     acudiente_nombre, acudiente_email, acudiente_password, acudiente_parentesco,
     acudiente_tipo_documento, acudiente_numero_documento,
   } = req.body;
@@ -303,6 +346,8 @@ async function actualizar(req, res) {
     await guardarDatosEstudiante(conn, id, {
       fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
       discapacidad, grupo_etnico, victima_conflicto,
+      codigo_matricula, lugar_expedicion_documento, barrio, ciudad, comuna, telefono, celular,
+      estudiante_nuevo, colegio_procedencia, anio_procedencia,
     });
 
     if (acudiente_email) {
@@ -339,6 +384,66 @@ async function eliminar(req, res) {
     console.error('Error al desactivar estudiante:', err);
     res.status(500).json({ error: 'Error al desactivar el estudiante' });
   }
+}
+
+// GET /api/estudiantes/:id/ficha
+// Ficha básica para que docentes y directivos identifiquen rápido a un
+// estudiante (foto, grado/curso, acudiente y director de grupo) — no incluye
+// notas ni datos sensibles, es solo una tarjeta de referencia visual.
+async function ficha(req, res) {
+  const { id } = req.params;
+  try {
+    const [[fila]] = await db.query(`
+      SELECT
+        u.id, u.nombre, u.foto_url, u.telefono_padres,
+        g.grado, g.nombre AS nombre_grupo,
+        dir.nombre AS director_grupo,
+        (
+          SELECT GROUP_CONCAT(p.nombre SEPARATOR ', ')
+          FROM padre_estudiante pe JOIN usuarios p ON p.id = pe.padre_id
+          WHERE pe.estudiante_id = u.id
+        ) AS acudientes
+      FROM usuarios u
+      LEFT JOIN estudiante_grupos eg ON eg.estudiante_id = u.id
+      LEFT JOIN grupos g ON g.id = eg.grupo_id
+      LEFT JOIN usuarios dir ON dir.grupo_dirigido_id = g.id
+      WHERE u.id = ? AND u.rol = 'estudiante' AND (u.colegio_id = ? OR g.colegio_id = ?)
+    `, [id, req.usuario.colegio_id, req.usuario.colegio_id]);
+
+    if (!fila) return res.status(404).json({ error: 'Estudiante no encontrado' });
+    res.json({ data: fila });
+  } catch (err) {
+    console.error('Error al obtener la ficha del estudiante:', err);
+    res.status(500).json({ error: 'Error al obtener la ficha del estudiante' });
+  }
+}
+
+// POST /api/estudiantes/:id/foto
+async function subirFoto(req, res) {
+  uploadFoto(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+    const { id } = req.params;
+    try {
+      const [[est]] = await db.query(
+        'SELECT id, foto_url FROM usuarios WHERE id = ? AND rol = "estudiante" AND colegio_id = ?',
+        [id, req.usuario.colegio_id]
+      );
+      if (!est) return res.status(404).json({ error: 'Estudiante no encontrado' });
+
+      if (est.foto_url) {
+        const anterior = path.join(__dirname, '../..', est.foto_url);
+        if (fs.existsSync(anterior)) fs.unlinkSync(anterior);
+      }
+
+      const foto_url = `/uploads/estudiantes/${req.file.filename}`;
+      await db.query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [foto_url, id]);
+      res.json({ data: { foto_url } });
+    } catch (dbErr) {
+      console.error('Error al guardar la foto:', dbErr);
+      res.status(500).json({ error: 'Error al guardar la foto' });
+    }
+  });
 }
 
 // GET /api/estudiantes/:id/historial
@@ -500,4 +605,4 @@ async function historial(req, res) {
   }
 }
 
-module.exports = { listar, crear, importar, actualizar, eliminar, historial };
+module.exports = { listar, crear, importar, actualizar, eliminar, historial, ficha, subirFoto };

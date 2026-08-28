@@ -1,6 +1,7 @@
 'use strict';
 const Anthropic = require('@anthropic-ai/sdk');
 const { CLAUDE_MODEL } = require('../config/ia');
+const { formatearApellidoPrimero } = require('../utils/ordenNombre');
 
 const anthropic = new Anthropic();
 
@@ -46,7 +47,7 @@ async function generarBorradorPiar(datos) {
   } = datos;
 
   const contexto = [
-    `ESTUDIANTE: ${estudianteNombre}`,
+    `ESTUDIANTE: ${formatearApellidoPrimero(estudianteNombre)}`,
     `GRADO: ${grado}° | GRUPO: ${grupoNombre} | COLEGIO: ${colegioNombre}`,
     `AÑO ESCOLAR: ${anioEscolar}`,
     docente_apoyo_nombre ? `DOCENTE DE APOYO PEDAGÓGICO: ${docente_apoyo_nombre}${docente_apoyo_observaciones ? ' — ' + docente_apoyo_observaciones : ''}` : null,

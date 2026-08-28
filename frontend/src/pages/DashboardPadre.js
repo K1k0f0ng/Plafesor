@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconAlertTriangle, IconBarChart, IconTrendUp, IconInbox, IconEdit, IconCalendar } from '../components/Icons';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const NIVEL_RIESGO = {
   bajo:    { label: 'Bajo',    color: '#2e7d32', fondo: '#e8f5e9' },
@@ -469,7 +470,7 @@ export default function DashboardPadre() {
                 <div style={es.hijoHeader}>
                   <div style={es.hijoAvatar}>{hijo.nombre.charAt(0).toUpperCase()}</div>
                   <div style={{ flex: 1 }}>
-                    <h3 style={es.hijoNombre}>{hijo.nombre}</h3>
+                    <h3 style={es.hijoNombre}>{formatearApellidoPrimero(hijo.nombre)}</h3>
                     <p style={es.hijoGrupo}>
                       {hijo.grado ? `Grado ${hijo.grado}°` : ''}
                       {hijo.grupo ? ` — ${hijo.grupo}` : ''}

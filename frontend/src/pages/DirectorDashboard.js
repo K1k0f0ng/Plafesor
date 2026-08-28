@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 import {
   IconBarChart, IconAlertCircle, IconZap, IconFileText, IconTrendUp,
   IconClipboard, IconSchool, IconBookOpen, IconUser, IconEdit,
@@ -280,7 +281,7 @@ export default function DirectorDashboard() {
                 </div>
                 {alertas.map((a, i) => (
                   <div key={i} style={{ ...es.alertaGridFila, background: i % 2 === 0 ? '#fff' : '#fffde7' }}>
-                    <span style={{ fontWeight: '700', color: '#333' }}>{a.nombre_estudiante}</span>
+                    <span style={{ fontWeight: '700', color: '#333' }}>{formatearApellidoPrimero(a.nombre_estudiante)}</span>
                     <span style={{ color: '#555' }}>{a.nombre_materia}</span>
                     <span style={{ color: '#888' }}>Grado {a.grado}° {a.nombre_grupo}</span>
                     <span style={{ textAlign: 'center' }}>

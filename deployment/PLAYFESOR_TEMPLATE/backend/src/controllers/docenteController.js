@@ -84,6 +84,37 @@ async function asignar(req, res) {
   }
 }
 
+// PUT /api/docentes/:id/grupo-dirigido — asigna, cambia o quita el grupo que dirige
+async function actualizarGrupoDirigido(req, res) {
+  const { id } = req.params;
+  const { grupo_id } = req.body;
+  const colegio_id = req.usuario.colegio_id;
+
+  try {
+    const [[docente]] = await db.query(
+      'SELECT id FROM usuarios WHERE id = ? AND rol = "docente" AND colegio_id = ?',
+      [id, colegio_id]
+    );
+    if (!docente) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    let grupoDirigido = null;
+    if (grupo_id) {
+      const [[grupo]] = await db.query('SELECT id FROM grupos WHERE id = ? AND colegio_id = ?', [grupo_id, colegio_id]);
+      if (!grupo) return res.status(400).json({ error: 'El grupo seleccionado no existe en tu colegio' });
+      grupoDirigido = grupo.id;
+    }
+
+    await db.query('UPDATE usuarios SET grupo_dirigido_id = ? WHERE id = ?', [grupoDirigido, id]);
+    res.json({ mensaje: grupoDirigido ? 'Director de grupo asignado' : 'Director de grupo removido' });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ese grupo ya tiene un director de grupo asignado' });
+    }
+    console.error('Error al actualizar director de grupo:', err);
+    res.status(500).json({ error: 'Error al actualizar el director de grupo' });
+  }
+}
+
 // GET /api/docentes/:id/asignaciones
 async function obtenerAsignaciones(req, res) {
   const { id } = req.params;
@@ -132,4 +163,4 @@ async function eliminar(req, res) {
   }
 }
 
-module.exports = { listar, crear, asignar, obtenerAsignaciones, eliminarAsignacion, eliminar };
+module.exports = { listar, crear, asignar, obtenerAsignaciones, eliminarAsignacion, eliminar, actualizarGrupoDirigido };

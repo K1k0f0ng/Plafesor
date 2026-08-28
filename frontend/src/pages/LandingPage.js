@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API } from '../config/api';
 
 /* ---------------------------------------------------------------
    Revelado por scroll (equivalente al "Reveal" con Framer Motion,
@@ -49,10 +50,15 @@ function Reveal({ as: Tag = 'div', delay = 0, className = '', children, ...rest 
 
 const navLinks = [
   { href: '#plataforma', label: 'Plataforma' },
+  { href: '#ecosistema', label: 'Ecosistema' },
   { href: '#ia', label: 'Inteligencia artificial' },
   { href: '#capacidades', label: 'Capacidades' },
   { href: '#faq', label: 'Preguntas' },
+  { href: '#contacto', label: 'Contacto' },
 ];
+
+const WHATSAPP_NUMERO = '573015179988';
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent('Hola, quiero más información sobre Playfesor.')}`;
 
 const apuestas = [
   {
@@ -61,10 +67,10 @@ const apuestas = [
     tag: 'Predicción académica',
     icon: <IconTrend />,
     title: 'Saber quién va a perder el año, antes de que sea tarde',
-    body: 'Cada noche el motor cruza promedio, tendencia de las últimas semanas, inasistencia y actividades incumplidas para calcular un score de riesgo por estudiante — con hasta 4 semanas de anticipación al cierre del período.',
+    body: 'Cada noche, la IA cruza notas, asistencia y actividades para calcular el riesgo de cada estudiante — con hasta 4 semanas de anticipación.',
     stats: [
-      ['>75%', 'precisión de predicción'],
-      ['>60%', 'recall sobre quienes pierden'],
+      ['3', 'variables cruzadas cada noche'],
+      ['Diario', 'recálculo automático'],
       ['4 sem.', 'de anticipación mínima'],
     ],
     rivals: ['Q10', 'Phidias', 'Moodle', 'Classroom'],
@@ -75,7 +81,7 @@ const apuestas = [
     tag: 'Gestión ejecutiva',
     icon: <IconChat />,
     title: 'Un copiloto que conoce cada estudiante, grupo y docente',
-    body: 'El rector colombiano típico gestiona entre 200 y 2.000 estudiantes sin un sistema de información ejecutivo real. El Copiloto responde en lenguaje natural con el contexto institucional completo.',
+    body: 'Pregúntele en lenguaje natural y el Copiloto responde al instante con los datos reales de su institución.',
     rivals: ['Q10', 'Phidias', 'Canvas'],
   },
   {
@@ -84,7 +90,7 @@ const apuestas = [
     tag: 'Automatización docente',
     icon: <IconPen />,
     title: 'El observador académico se escribe solo',
-    body: 'Obligatorio por normativa MEN y una de las tareas más tediosas del docente. La IA lo redacta; el docente solo revisa y firma — 3 a 5 horas ahorradas al mes.',
+    body: 'La IA redacta el observador oficial; el docente solo revisa y firma — hasta 5 horas ahorradas al mes.',
     rivals: ['Q10', 'Phidias', 'Moodle'],
   },
   {
@@ -93,7 +99,7 @@ const apuestas = [
     tag: 'Acompañamiento 24/7',
     icon: <IconCap />,
     title: 'Cada estudiante, su propio tutor',
-    body: 'Democratiza el acceso a tutoría personalizada. Conoce las notas del estudiante, en qué actividades falló y el currículo exacto de su colegio.',
+    body: 'Conoce las notas, los errores y el currículo exacto del estudiante — disponible a cualquier hora del día.',
     rivals: ['ChatGPT genérico', 'Q10', 'Phidias'],
   },
   {
@@ -102,7 +108,7 @@ const apuestas = [
     tag: 'Inteligencia institucional',
     icon: <IconChart />,
     title: 'El Power BI educativo que Colombia no tenía',
-    body: 'Preconfigurado para el contexto educativo colombiano: escala MEN, estructura de grupos, períodos académicos y competencias curriculares — sin expertos de por medio.',
+    body: 'Escala MEN, grupos, períodos y competencias, ya configurados — sin contratar un experto en datos.',
     rivals: ['Power BI', 'Tableau', 'Q10'],
   },
   {
@@ -111,7 +117,7 @@ const apuestas = [
     tag: 'Visión institucional en vivo',
     icon: <IconLayers />,
     title: 'La versión digital completa de su institución, viva y en tiempo real',
-    body: 'No es un reporte: es una vista que se actualiza cada vez que un estudiante completa una actividad. Pulso académico, mapa de calor por grupo, termómetro de riesgo y proyecciones de qué pasa si se actúa ahora — o si no se actúa.',
+    body: 'Se actualiza cada vez que un estudiante completa una actividad: pulso académico, mapa de calor por grupo y proyección de qué pasa si actúa ahora — o si no actúa.',
     widget: <GemeloWidget />,
     rivals: ['Q10', 'Phidias', 'Reportes estáticos'],
   },
@@ -126,7 +132,8 @@ const featureGroups = [
       'Motor de actividades interactivas con calificación automática',
       'Escala de valoración oficial MEN configurada',
       'Control de asistencia por sesión',
-      'Boletines oficiales listos para imprimir',
+      'Boletines oficiales listos para imprimir, con observaciones redactadas por IA',
+      'PIAR (Plan Individual de Ajustes Razonables) conforme al Decreto 1421 de 2017',
       'Exportación de reportes a Excel en un clic',
     ],
   },
@@ -135,6 +142,7 @@ const featureGroups = [
     title: 'Los padres informados sin saturar rectoría',
     items: [
       'Notificaciones automáticas por WhatsApp: notas, inasistencias, alertas',
+      'Citaciones a reunión y mensajes masivos institucionales por WhatsApp',
       'Portal dedicado para consultar el progreso de sus hijos',
       'Comunicación oficial trazable, no en chats personales',
       'Reducción medible de llamadas telefónicas al centro educativo',
@@ -145,6 +153,7 @@ const featureGroups = [
     title: 'Un gemelo digital de su institución',
     items: [
       'Centro de métricas: salud académica en tiempo real',
+      'Briefing ejecutivo diario para el rector, generado cada mañana',
       'Ranking de grupos y docentes con evolución histórica',
       'Mapas de calor por materia para detectar cuellos de botella',
       'Panel de dirección con la foto general de la institución',
@@ -177,6 +186,10 @@ const capabilities = [
   'Observador académico generado por IA',
   'Tutor IA 24/7 para estudiantes',
   'Planes de mejoramiento generados por IA',
+  'Observaciones de boletín redactadas por IA',
+  'Citaciones y mensajes masivos por WhatsApp',
+  'PIAR conforme al Decreto 1421 de 2017',
+  'Briefing ejecutivo diario para el rector',
   'Gemelo digital de la institución',
 ];
 
@@ -190,7 +203,7 @@ const testimonialStats = [
 const faqs = [
   {
     q: '¿Playfesor ya está funcionando o es un prototipo?',
-    a: 'Está en operación real. Hay centros educativos en Colombia usando Playfesor hoy para gestionar sus procesos académicos completos, no como piloto sino como sistema oficial.',
+    a: 'Está en operación real, gestionando procesos académicos completos como sistema oficial — no como prototipo ni como piloto.',
   },
   {
     q: '¿Cumple con el sistema de evaluación colombiano (MEN)?',
@@ -269,12 +282,115 @@ function IconChart() {
   );
 }
 
+function IconWhatsApp() {
+  return (
+    <svg viewBox="0 0 24 24" className="contact-icon" fill="currentColor">
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.85 9.85 0 0 0 4.74 1.21h.005c5.46 0 9.9-4.45 9.9-9.91C21.93 6.45 17.5 2 12.04 2zm5.8 14.07c-.24.68-1.4 1.32-1.93 1.4-.5.08-1.13.11-1.82-.12-.42-.13-.96-.31-1.65-.6-2.9-1.25-4.8-4.16-4.94-4.36-.14-.2-1.18-1.57-1.18-3 0-1.42.75-2.12 1.02-2.41.27-.29.58-.36.78-.36h.55c.18 0 .42-.07.65.5.24.58.82 2 .9 2.14.07.14.11.31.02.5-.09.19-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.61-.07.16-.19.68-.79.87-1.06.19-.27.37-.22.62-.13.25.09 1.6.75 1.87.89.28.14.46.2.53.32.07.12.07.68-.17 1.36z" />
+    </svg>
+  );
+}
+
+function IconMail() {
+  return (
+    <svg viewBox="0 0 24 24" className="contact-icon" fill="none">
+      <path d="M3 6h18v12H3V6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconPin() {
+  return (
+    <svg viewBox="0 0 24 24" className="contact-icon" fill="none">
+      <path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <circle cx="12" cy="9.5" r="2.4" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
 function IconLayers() {
   return (
     <svg viewBox="0 0 24 24" className="apuesta-icon" fill="none">
       <path d="M12 3l9 5-9 5-9-5 9-5z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
       <path d="M3 13l9 5 9-5" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function IconRector() {
+  return (
+    <svg viewBox="0 0 24 24" className="eco-node-icon" fill="none">
+      <path d="M4 21V9l8-5 8 5v12" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M9 21v-6h6v6" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M9 12h.01M15 12h.01M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconTeacherRole() {
+  return (
+    <svg viewBox="0 0 24 24" className="eco-node-icon" fill="none">
+      <rect x="3" y="4" width="18" height="12" rx="1.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M7 12l3-3 2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconStudentRole() {
+  return (
+    <svg viewBox="0 0 24 24" className="eco-node-icon" fill="none">
+      <path d="M2 8l10-4 10 4-10 4-10-4z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M6 10v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconFamilyRole() {
+  return (
+    <svg viewBox="0 0 24 24" className="eco-node-icon" fill="none">
+      <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="2" />
+      <circle cx="17" cy="9" r="2.4" stroke="currentColor" strokeWidth="2" />
+      <path d="M2.5 20c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M14.5 20c0-2.2 1.6-4 3.6-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const ecoNodes = [
+  { id: 'rectoria', label: 'Rectoría', desc: 'Panel de dirección y métricas', icon: <IconRector />, area: 'n1' },
+  { id: 'docentes', label: 'Docentes', desc: 'Actividades, notas y observador IA', icon: <IconTeacherRole />, area: 'n2' },
+  { id: 'estudiantes', label: 'Estudiantes', desc: 'Progreso y tutor IA 24/7', icon: <IconStudentRole />, area: 'n3' },
+  { id: 'acudientes', label: 'Acudientes', desc: 'Boletines y alertas por WhatsApp', icon: <IconFamilyRole />, area: 'n4' },
+];
+
+const ecoBenefits = [
+  'Un solo sistema, no cinco herramientas sueltas',
+  'Cada institución con su información aislada',
+  'Se actualiza cada vez que alguien registra algo',
+];
+
+function EcosistemaDiagram() {
+  return (
+    <div className="eco-diagram">
+      <svg className="eco-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="50" y1="50" x2="13" y2="13" />
+        <line x1="50" y1="50" x2="87" y2="13" />
+        <line x1="50" y1="50" x2="13" y2="87" />
+        <line x1="50" y1="50" x2="87" y2="87" />
+      </svg>
+      <div className="eco-hub">
+        <img src="/logo-icon.png" alt="" className="eco-hub-icon" />
+        <span>Datos académicos</span>
+      </div>
+      {ecoNodes.map((n) => (
+        <div className={`eco-node eco-${n.area}`} key={n.id}>
+          <span className="eco-node-icon-wrap">{n.icon}</span>
+          <span className="eco-node-label">{n.label}</span>
+          <span className="eco-node-desc">{n.desc}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -441,10 +557,49 @@ function HeroMockup() {
    Página
 --------------------------------------------------------------- */
 
+const DEMO_FORM_VACIO = { nombre: '', email: '', telefono: '', colegio: '', cargo: '', cantidad_estudiantes: '' };
+
 export default function LandingPage() {
+  const [demoForm, setDemoForm] = useState(DEMO_FORM_VACIO);
+  const [demoEnviando, setDemoEnviando] = useState(false);
+  const [demoEstado, setDemoEstado] = useState(null);
+
+  async function enviarDemo(e) {
+    e.preventDefault();
+    setDemoEnviando(true);
+    setDemoEstado(null);
+    try {
+      const resp = await fetch(`${API}/api/contacto/demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(demoForm),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'No se pudo enviar la solicitud');
+      setDemoEstado({ ok: true, mensaje: data.mensaje || '¡Solicitud enviada! Nos pondremos en contacto pronto.' });
+      setDemoForm(DEMO_FORM_VACIO);
+    } catch (err) {
+      setDemoEstado({ ok: false, mensaje: err.message || 'No se pudo enviar la solicitud. Intenta de nuevo.' });
+    } finally {
+      setDemoEnviando(false);
+    }
+  }
+
   return (
     <div className="landing-page">
       <style>{styles}</style>
+
+      <a
+        href={WHATSAPP_LINK}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="wa-float"
+        aria-label="Escribir por WhatsApp"
+        title="Escribir por WhatsApp"
+      >
+        <span className="wa-float-ring" />
+        <IconWhatsApp />
+      </a>
 
       <header className="lp-nav">
         <div className="lp-nav-inner">
@@ -474,16 +629,16 @@ export default function LandingPage() {
               <div className="eyebrow hero-eyebrow">Sistema Inteligente de Gestión Académica</div>
               <div className="hero-badge">
                 <span className="ping-dot"><span className="ping-dot-ring" /><span className="ping-dot-core" /></span>
-                En operación real en centros educativos colombianos
+                En operación real, no en fase de prueba
               </div>
               <h1 className="hero-title">
                 El sistema de gestión académica que <span className="font-display">piensa</span><br className="br-desktop" /> por su institución.
               </h1>
               <p className="hero-subtitle">
-                Playfesor unifica a alumnos, padres y docentes en un ecosistema de alta eficiencia, donde la IA garantiza la oportunidad de éxito y la confiabilidad absoluta en cada decisión.
+                Detecta el riesgo académico a tiempo, automatiza el trabajo del docente y mantiene informados a los padres — todo en un solo sistema.
               </p>
               <div className="hero-actions">
-                <a href="#demo" className="btn btn-navy btn-lg">Solicitar demo para mi institución <span aria-hidden>→</span></a>
+                <a href="#demo" className="btn btn-navy btn-lg">Quiero ver Playfesor en mi colegio <span aria-hidden>→</span></a>
                 <Link to="/login" className="btn btn-outline btn-lg">Ingresar al sistema</Link>
               </div>
               <p className="hero-fineprint">Escala de valoración MEN · Boletines oficiales · WhatsApp a padres incluido</p>
@@ -539,6 +694,30 @@ export default function LandingPage() {
                 </Reveal>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Ecosistema */}
+        <section className="section" id="ecosistema">
+          <div className="section-inner">
+            <Reveal className="section-head">
+              <div className="eyebrow">Cómo funciona</div>
+              <h2 className="h2">Todo el colegio, <span className="font-display">conectado</span>.</h2>
+              <p className="section-lead">Rectoría, docentes, estudiantes y acudientes comparten una sola fuente de información académica — actualizada en tiempo real, sin planillas paralelas ni WhatsApp sueltos.</p>
+            </Reveal>
+
+            <Reveal delay={100}>
+              <EcosistemaDiagram />
+            </Reveal>
+
+            <Reveal delay={160} className="eco-benefits">
+              {ecoBenefits.map((b) => (
+                <div className="eco-benefit" key={b}>
+                  <span className="feature-item-check"><CheckIcon /></span>
+                  <span>{b}</span>
+                </div>
+              ))}
+            </Reveal>
           </div>
         </section>
 
@@ -620,14 +799,8 @@ export default function LandingPage() {
         <section className="section">
           <div className="section-inner section-inner-narrow">
             <Reveal>
-              <blockquote className="quote">“Antes descubríamos al estudiante en riesgo cuando ya era tarde. Con Playfesor lo vemos en septiembre — y hacemos algo al respecto.”</blockquote>
-              <div className="quote-author">
-                <div className="quote-avatar" />
-                <div>
-                  <div className="quote-name">Rectoría · Institución piloto</div>
-                  <div className="quote-loc">Bogotá, Colombia</div>
-                </div>
-              </div>
+              <div className="eyebrow" style={{ textAlign: 'center', display: 'block' }}>La idea detrás de Playfesor</div>
+              <blockquote className="quote">“Antes se descubría al estudiante en riesgo cuando ya era tarde. Con alerta temprana se ve en septiembre — y todavía se puede hacer algo al respecto.”</blockquote>
             </Reveal>
 
             <div className="stats-grid">
@@ -660,6 +833,48 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        {/* Contacto */}
+        <section className="section section-muted" id="contacto">
+          <div className="section-inner">
+            <Reveal className="section-head">
+              <div className="eyebrow">Contacto</div>
+              <h2 className="h2">Hablemos sobre su institución.</h2>
+              <p className="section-lead">Escríbanos por el medio que prefiera — respondemos rápido.</p>
+            </Reveal>
+
+            <Reveal className="contact-grid">
+              <a href="mailto:consultor@playfesor.co" className="contact-card">
+                <span className="contact-icon-wrap"><IconMail /></span>
+                <span className="contact-card-body">
+                  <span className="contact-card-label">Consultoría comercial</span>
+                  <span className="contact-card-value">consultor@playfesor.co</span>
+                </span>
+              </a>
+              <a href="mailto:demo@playfesor.co" className="contact-card">
+                <span className="contact-icon-wrap"><IconMail /></span>
+                <span className="contact-card-body">
+                  <span className="contact-card-label">Solicitar demo</span>
+                  <span className="contact-card-value">demo@playfesor.co</span>
+                </span>
+              </a>
+              <div className="contact-card contact-card-static">
+                <span className="contact-icon-wrap"><IconPin /></span>
+                <span className="contact-card-body">
+                  <span className="contact-card-label">Ubicación</span>
+                  <span className="contact-card-value">Medellín · Cali, Colombia</span>
+                </span>
+              </div>
+              <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="contact-card contact-card-whatsapp">
+                <span className="contact-icon-wrap contact-icon-wrap-whatsapp"><IconWhatsApp /></span>
+                <span className="contact-card-body">
+                  <span className="contact-card-label">WhatsApp</span>
+                  <span className="contact-card-value">+57 301 517 9988</span>
+                </span>
+              </a>
+            </Reveal>
+          </div>
+        </section>
       </main>
 
       {/* CTA */}
@@ -668,19 +883,75 @@ export default function LandingPage() {
           <Reveal className="cta-card">
             <div className="cta-grid-bg" aria-hidden="true" />
             <div className="cta-glow" aria-hidden="true" />
-            <div className="cta-content">
-              <div className="eyebrow eyebrow-light">Demo para su institución</div>
-              <h2 className="h2 h2-light">Vea Playfesor con los <span className="font-display font-display-light">datos reales</span> de su institución en 30 minutos.</h2>
-              <p className="section-lead section-lead-light">Le mostramos cómo se vería su institución dentro de Playfesor — grupos, boletines, WhatsApp a padres, riesgo predictivo. Sin compromiso.</p>
-              <div className="hero-actions">
-                <a href="mailto:demo@playfesor.co?subject=Solicitud%20de%20demo%20Playfesor" className="btn btn-white btn-lg">Solicitar demo <span aria-hidden>→</span></a>
-                <Link to="/login" className="btn btn-outline-light btn-lg">Ya soy usuario · Ingresar</Link>
+            <div className="cta-layout">
+              <div className="cta-content">
+                <div className="eyebrow eyebrow-light">Demo para su institución</div>
+                <h2 className="h2 h2-light">Descubra qué estudiantes están en <span className="font-display font-display-light">riesgo</span> ahora — con los datos reales de su colegio.</h2>
+                <p className="section-lead section-lead-light">En 30 minutos le mostramos su propia institución dentro de Playfesor: grupos, boletines, WhatsApp a padres y el motor de riesgo predictivo. Sin compromiso.</p>
+                <div className="cta-fineprint">
+                  <span>✓ Migración de datos incluida</span>
+                  <span>✓ Capacitación al equipo docente</span>
+                  <span>✓ Soporte en español, en Colombia</span>
+                </div>
+                <Link to="/login" className="btn btn-outline-light btn-lg" style={{ marginTop: 28 }}>Ya soy usuario · Ingresar</Link>
               </div>
-              <div className="cta-fineprint">
-                <span>✓ Migración de datos incluida</span>
-                <span>✓ Capacitación al equipo docente</span>
-                <span>✓ Soporte en español, en Colombia</span>
-              </div>
+
+              <form className="demo-form" onSubmit={enviarDemo}>
+                <h3 className="demo-form-title">Solicita tu demo gratuita</h3>
+                <p className="demo-form-sub">Completa el formulario y un asesor te contacta para coordinar la demo.</p>
+
+                <label className="demo-form-label">Nombre completo</label>
+                <input required className="demo-form-input" placeholder="Tu nombre" value={demoForm.nombre}
+                  onChange={e => setDemoForm(f => ({ ...f, nombre: e.target.value }))} />
+
+                <label className="demo-form-label">Correo electrónico</label>
+                <input required type="email" className="demo-form-input" placeholder="tu@email.com" value={demoForm.email}
+                  onChange={e => setDemoForm(f => ({ ...f, email: e.target.value }))} />
+
+                <label className="demo-form-label">Teléfono</label>
+                <input className="demo-form-input" placeholder="Tu número de teléfono" value={demoForm.telefono}
+                  onChange={e => setDemoForm(f => ({ ...f, telefono: e.target.value }))} />
+
+                <label className="demo-form-label">Nombre del colegio</label>
+                <input required className="demo-form-input" placeholder="Nombre de tu institución" value={demoForm.colegio}
+                  onChange={e => setDemoForm(f => ({ ...f, colegio: e.target.value }))} />
+
+                <div className="demo-form-row">
+                  <div style={{ flex: 1 }}>
+                    <label className="demo-form-label">Tu cargo</label>
+                    <select className="demo-form-input" value={demoForm.cargo}
+                      onChange={e => setDemoForm(f => ({ ...f, cargo: e.target.value }))}>
+                      <option value="">Selecciona tu cargo</option>
+                      <option value="Rector/Director">Rector / Director</option>
+                      <option value="Coordinador académico">Coordinador académico</option>
+                      <option value="Docente">Docente</option>
+                      <option value="Administrativo">Administrativo / Secretaría</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="demo-form-label">Cantidad de estudiantes</label>
+                    <select className="demo-form-input" value={demoForm.cantidad_estudiantes}
+                      onChange={e => setDemoForm(f => ({ ...f, cantidad_estudiantes: e.target.value }))}>
+                      <option value="">Selecciona</option>
+                      <option value="Menos de 200">Menos de 200</option>
+                      <option value="200 - 500">200 - 500</option>
+                      <option value="500 - 1.000">500 - 1.000</option>
+                      <option value="Más de 1.000">Más de 1.000</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-navy btn-lg demo-form-submit" disabled={demoEnviando}>
+                  {demoEnviando ? 'Enviando...' : 'Quiero mi demo gratuita'} <span aria-hidden>→</span>
+                </button>
+
+                {demoEstado && (
+                  <p className={`demo-form-estado ${demoEstado.ok ? 'is-ok' : 'is-error'}`}>{demoEstado.mensaje}</p>
+                )}
+
+                <p className="demo-form-legal">Al enviar este formulario, aceptas recibir comunicaciones de Playfesor</p>
+              </form>
             </div>
           </Reveal>
         </div>
@@ -705,9 +976,10 @@ export default function LandingPage() {
             <div>
               <div className="footer-title">Contacto</div>
               <ul>
+                <li><a href="mailto:consultor@playfesor.co">consultor@playfesor.co</a></li>
                 <li><a href="mailto:demo@playfesor.co">demo@playfesor.co</a></li>
-                <li><a href="#demo">Solicitar demo</a></li>
-                <li>Medellín, Colombia</li>
+                <li><a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">WhatsApp: +57 301 517 9988</a></li>
+                <li>Medellín · Cali, Colombia</li>
               </ul>
             </div>
           </div>
@@ -934,6 +1206,43 @@ const styles = `
   .feature-item { display: flex; gap: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); padding: 14px; font-size: 0.88rem; color: var(--foreground); }
   .feature-item-check { flex-shrink: 0; margin-top: 2px; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(41,129,251,0.14); color: var(--brand-blue); }
 
+  /* Ecosistema */
+  .eco-diagram {
+    position: relative;
+    width: 100%; max-width: 420px; margin: 48px auto 0;
+    aspect-ratio: 1 / 1;
+  }
+  .eco-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .eco-lines line { stroke: rgba(41,129,251,0.3); stroke-width: 1; }
+  .eco-hub {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 1; width: 96px; height: 96px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 50%;
+    box-shadow: 0 14px 28px rgba(2,24,63,0.12);
+    text-align: center; padding: 8px;
+  }
+  .eco-hub-icon { width: 22px; height: 22px; object-fit: contain; }
+  .eco-hub span { font-size: 0.66rem; font-weight: 700; color: var(--ink); line-height: 1.15; }
+  .eco-node {
+    position: absolute; transform: translate(-50%, -50%);
+    z-index: 1; width: 132px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 10px; text-align: center;
+    box-shadow: 0 8px 20px rgba(2,24,63,0.06);
+  }
+  .eco-n1 { top: 13%; left: 13%; }
+  .eco-n2 { top: 13%; left: 87%; }
+  .eco-n3 { top: 87%; left: 13%; }
+  .eco-n4 { top: 87%; left: 87%; }
+  .eco-node-icon-wrap { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: rgba(41,129,251,0.12); color: var(--brand-blue); }
+  .eco-node-icon { width: 15px; height: 15px; }
+  .eco-node-label { font-size: 0.78rem; font-weight: 700; color: var(--ink); }
+  .eco-node-desc { font-size: 0.66rem; color: var(--muted-fg); line-height: 1.25; }
+  .eco-benefits { margin-top: 36px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 28px; }
+  .eco-benefit { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: var(--foreground); }
+
   /* AI section */
   .ai-section { position: relative; overflow: hidden; background: var(--brand-navy); color: #fff; }
   .ai-dot-bg { position: absolute; inset: 0; opacity: 0.35; background-image: radial-gradient(rgba(255,255,255,0.18) 1px, transparent 1px); background-size: 22px 22px; }
@@ -977,11 +1286,26 @@ const styles = `
   .capability-item:hover { background: var(--secondary); }
   .capability-check { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(41,129,251,0.14); color: var(--brand-blue); }
 
+  /* Contacto */
+  .contact-grid { margin-top: 40px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .contact-card {
+    display: flex; align-items: center; gap: 14px; border-radius: 16px; border: 1px solid var(--border);
+    background: var(--card); padding: 20px; text-decoration: none; color: var(--foreground);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .contact-card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(2,24,63,0.08); }
+  .contact-card-static { cursor: default; }
+  .contact-icon-wrap { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(41,129,251,0.12); color: var(--brand-blue); }
+  .contact-icon { width: 20px; height: 20px; }
+  .contact-card-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .contact-card-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-fg); }
+  .contact-card-value { font-size: 0.92rem; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contact-card-whatsapp { border-color: rgba(37,211,102,0.35); background: rgba(37,211,102,0.06); }
+  .contact-card-whatsapp:hover { box-shadow: 0 16px 32px rgba(37,211,102,0.18); }
+  .contact-icon-wrap-whatsapp { background: #25d366; color: #fff; }
+
   /* Testimonial */
-  .quote { text-align: center; font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1.25; color: var(--ink); }
-  .quote-author { margin-top: 28px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 0.88rem; color: var(--muted-fg); }
-  .quote-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-blue), var(--brand-navy)); }
-  .quote-name { font-weight: 600; color: var(--foreground); }
+  .quote { text-align: center; font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1.25; color: var(--ink); margin-top: 12px; }
   .stats-grid { margin-top: 64px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px 16px; padding-top: 40px; border-top: 1px solid var(--border); text-align: center; }
   .stats-k { font-size: 1.6rem; font-weight: 700; color: var(--ink); }
   .stats-v { margin-top: 4px; font-size: 0.72rem; color: var(--muted-fg); }
@@ -1001,8 +1325,23 @@ const styles = `
   .cta-card { position: relative; overflow: hidden; border-radius: 30px; background: var(--brand-navy); padding: 64px 40px; color: #fff; }
   .cta-grid-bg { position: absolute; inset: 0; opacity: 0.15; background-image: linear-gradient(to right, rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.4) 1px, transparent 1px); background-size: 56px 56px; }
   .cta-glow { position: absolute; right: -100px; top: -100px; width: 380px; height: 380px; border-radius: 999px; background: rgba(41,129,251,0.4); filter: blur(120px); }
-  .cta-content { position: relative; max-width: 720px; }
+  .cta-layout { position: relative; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: start; }
+  .cta-content { max-width: 560px; }
   .cta-fineprint { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 12px 28px; font-size: 0.78rem; color: rgba(255,255,255,0.6); }
+
+  /* Formulario de demo */
+  .demo-form { background: #fff; border-radius: 20px; padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,0.25); display: flex; flex-direction: column; }
+  .demo-form-title { margin: 0; font-size: 1.15rem; font-weight: 800; color: var(--ink); }
+  .demo-form-sub { margin: 6px 0 18px; font-size: 0.82rem; color: var(--muted-fg); }
+  .demo-form-label { font-size: 0.76rem; font-weight: 600; color: var(--foreground); margin: 12px 0 5px; }
+  .demo-form-input { width: 100%; padding: 10px 13px; border-radius: 9px; border: 1.5px solid var(--border); font-size: 0.88rem; font-family: inherit; outline: none; background: #fff; color: var(--foreground); box-sizing: border-box; }
+  .demo-form-input:focus { border-color: var(--brand-blue); }
+  .demo-form-row { display: flex; gap: 12px; }
+  .demo-form-submit { width: 100%; margin-top: 20px; justify-content: center; }
+  .demo-form-estado { margin: 12px 0 0; font-size: 0.8rem; font-weight: 600; text-align: center; }
+  .demo-form-estado.is-ok { color: #16a34a; }
+  .demo-form-estado.is-error { color: #dc2626; }
+  .demo-form-legal { margin: 14px 0 0; font-size: 0.7rem; color: var(--muted-fg); text-align: center; }
 
   /* Footer */
   .lp-footer { border-top: 1px solid var(--border); background: var(--secondary); }
@@ -1013,6 +1352,34 @@ const styles = `
   .footer-grid a { color: var(--muted-fg); text-decoration: none; }
   .footer-grid a:hover { color: var(--foreground); }
   .footer-bottom { margin-top: 48px; padding: 24px 0; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; font-size: 0.76rem; color: var(--muted-fg); }
+
+  /* Botón flotante de WhatsApp */
+  .wa-float {
+    position: fixed;
+    right: 22px;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    z-index: 200;
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: #25d366;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 28px rgba(37,211,102,0.45);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .wa-float:hover { transform: scale(1.08); box-shadow: 0 14px 34px rgba(37,211,102,0.55); }
+  .wa-float svg { width: 30px; height: 30px; position: relative; }
+  .wa-float-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: #25d366; opacity: 0.55;
+    animation: wa-pulse 2.2s cubic-bezier(0,0,0.2,1) infinite;
+  }
+  @keyframes wa-pulse { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.7); opacity: 0; } }
+
+  @media (max-width: 640px) {
+    .wa-float { width: 52px; height: 52px; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); }
+    .wa-float svg { width: 27px; height: 27px; }
+  }
 
   /* Reveal */
   .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.6s ease, transform 0.6s ease; }
@@ -1038,6 +1405,9 @@ const styles = `
     .footer-grid { grid-template-columns: 1fr 1fr; }
     .mockup-split { grid-template-columns: 1fr; }
     .capability-grid { grid-template-columns: 1fr; }
+    .contact-grid { grid-template-columns: 1fr 1fr; }
+    .cta-layout { grid-template-columns: 1fr; }
+    .cta-content { max-width: none; }
   }
 
   @media (max-width: 640px) {
@@ -1048,5 +1418,13 @@ const styles = `
     .hero-actions .btn, .cta-content .btn { width: 100%; }
     .footer-grid { grid-template-columns: 1fr; }
     .cta-card { padding: 40px 22px; }
+    .contact-grid { grid-template-columns: 1fr; }
+    .demo-form-row { flex-direction: column; }
+    .eco-diagram { display: flex; flex-direction: column; gap: 12px; aspect-ratio: auto; max-width: 360px; margin-top: 32px; }
+    .eco-lines { display: none; }
+    .eco-hub, .eco-node { position: static; transform: none; width: auto; }
+    .eco-hub { border-radius: 16px; flex-direction: row; justify-content: center; padding: 14px; order: -1; }
+    .eco-node { border-radius: 16px; flex-direction: row; text-align: left; justify-content: flex-start; gap: 12px; }
+    .eco-node-desc { max-width: none; }
   }
 `;

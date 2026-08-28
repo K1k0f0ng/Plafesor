@@ -14,9 +14,12 @@ dist/
 .env.production
 !.env.example
 
-# Archivos subidos por usuarios (logos, etc.) — no son código, no deben
-# versionarse. El backend crea esta carpeta automáticamente si no existe.
+# Archivos subidos por usuarios (logos, fotos de estudiantes, etc.) — no son
+# código, no deben versionarse (las fotos son datos personales de menores de
+# edad). El backend crea estas carpetas automáticamente si no existen.
 uploads/logos/
+uploads/estudiantes/
+uploads_privados/
 
 # Volcados de la base de datos real — contienen datos personales de
 # estudiantes, docentes y padres (nombres, correos, teléfonos, hashes de

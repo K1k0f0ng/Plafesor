@@ -1,5 +1,6 @@
 const db = require('../database');
 const { generarBorradorPiar, CAMPOS_PIAR } = require('../services/piarService');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 const CAMPOS_CLAVES = CAMPOS_PIAR.map(c => c.clave);
 
@@ -24,7 +25,7 @@ async function listarPorColegio(req, res) {
       LEFT JOIN piar pi ON pi.estudiante_id = u.id AND pi.anio_escolar = ?
       WHERE u.rol = 'estudiante' AND u.requiere_piar = TRUE
         AND (u.colegio_id = ? OR g.colegio_id = ?)
-      ORDER BY g.grado ASC, u.nombre ASC
+      ORDER BY g.grado ASC, ${ordenApellido('u.nombre')} ASC
     `, [anioEscolar, colegio_id, colegio_id]);
 
     res.json({ data: filas });

@@ -1,5 +1,6 @@
 const db = require('../database');
 const { enviarMensaje } = require('../services/whatsappService');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 function formatearFecha(fechaStr) {
   if (!fechaStr) return null;
@@ -77,7 +78,7 @@ async function estudiantesDelGrupo(req, res) {
       FROM estudiante_grupos eg
       JOIN usuarios u ON u.id = eg.estudiante_id
       WHERE eg.grupo_id = ? AND u.activo = TRUE
-      ORDER BY u.nombre ASC
+      ORDER BY ${ordenApellido('u.nombre')} ASC
     `, [grupoId]);
     res.json({ data: estudiantes });
   } catch (err) {

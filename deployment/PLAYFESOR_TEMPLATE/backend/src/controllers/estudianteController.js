@@ -1,5 +1,27 @@
 const bcrypt = require('bcryptjs');
 const db = require('../database');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const { ordenApellido } = require('../utils/ordenNombre');
+
+const uploadsDirEstudiantes = path.join(__dirname, '../../uploads/estudiantes');
+if (!fs.existsSync(uploadsDirEstudiantes)) fs.mkdirSync(uploadsDirEstudiantes, { recursive: true });
+
+const uploadFoto = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDirEstudiantes,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `estudiante_${req.params.id}_${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/\.(jpe?g|png|webp)$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes (jpg, png, webp)'));
+  },
+}).single('foto');
 
 // Estos endpoints reciben JSON directamente (no solo desde el formulario ni
 // desde la plantilla Excel, que ya normalizan), así que se valida de nuevo
@@ -88,7 +110,7 @@ async function listar(req, res) {
   const { grupo_id } = req.query;
   try {
     let sql = `
-      SELECT u.id, u.nombre, u.email, u.activo, u.colegio_id,
+      SELECT u.id, u.nombre, u.email, u.activo, u.colegio_id, u.foto_url,
              u.telefono_padres, u.requiere_piar, u.tipo_documento, u.numero_documento,
              eg.grupo_id,
              g.nombre AS nombre_grupo, g.grado,
@@ -111,7 +133,7 @@ async function listar(req, res) {
       sql += ' AND eg.grupo_id = ?';
       params.push(grupo_id);
     }
-    sql += ' ORDER BY u.nombre ASC';
+    sql += ` ORDER BY ${ordenApellido('u.nombre')} ASC`;
 
     const [filas] = await db.query(sql, params);
     res.json({ data: filas });
@@ -341,6 +363,66 @@ async function eliminar(req, res) {
   }
 }
 
+// GET /api/estudiantes/:id/ficha
+// Ficha básica para que docentes y directivos identifiquen rápido a un
+// estudiante (foto, grado/curso, acudiente y director de grupo) — no incluye
+// notas ni datos sensibles, es solo una tarjeta de referencia visual.
+async function ficha(req, res) {
+  const { id } = req.params;
+  try {
+    const [[fila]] = await db.query(`
+      SELECT
+        u.id, u.nombre, u.foto_url, u.telefono_padres,
+        g.grado, g.nombre AS nombre_grupo,
+        dir.nombre AS director_grupo,
+        (
+          SELECT GROUP_CONCAT(p.nombre SEPARATOR ', ')
+          FROM padre_estudiante pe JOIN usuarios p ON p.id = pe.padre_id
+          WHERE pe.estudiante_id = u.id
+        ) AS acudientes
+      FROM usuarios u
+      LEFT JOIN estudiante_grupos eg ON eg.estudiante_id = u.id
+      LEFT JOIN grupos g ON g.id = eg.grupo_id
+      LEFT JOIN usuarios dir ON dir.grupo_dirigido_id = g.id
+      WHERE u.id = ? AND u.rol = 'estudiante' AND (u.colegio_id = ? OR g.colegio_id = ?)
+    `, [id, req.usuario.colegio_id, req.usuario.colegio_id]);
+
+    if (!fila) return res.status(404).json({ error: 'Estudiante no encontrado' });
+    res.json({ data: fila });
+  } catch (err) {
+    console.error('Error al obtener la ficha del estudiante:', err);
+    res.status(500).json({ error: 'Error al obtener la ficha del estudiante' });
+  }
+}
+
+// POST /api/estudiantes/:id/foto
+async function subirFoto(req, res) {
+  uploadFoto(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+    const { id } = req.params;
+    try {
+      const [[est]] = await db.query(
+        'SELECT id, foto_url FROM usuarios WHERE id = ? AND rol = "estudiante" AND colegio_id = ?',
+        [id, req.usuario.colegio_id]
+      );
+      if (!est) return res.status(404).json({ error: 'Estudiante no encontrado' });
+
+      if (est.foto_url) {
+        const anterior = path.join(__dirname, '../..', est.foto_url);
+        if (fs.existsSync(anterior)) fs.unlinkSync(anterior);
+      }
+
+      const foto_url = `/uploads/estudiantes/${req.file.filename}`;
+      await db.query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [foto_url, id]);
+      res.json({ data: { foto_url } });
+    } catch (dbErr) {
+      console.error('Error al guardar la foto:', dbErr);
+      res.status(500).json({ error: 'Error al guardar la foto' });
+    }
+  });
+}
+
 // GET /api/estudiantes/:id/historial
 async function historial(req, res) {
   const eid = parseInt(req.params.id);
@@ -500,4 +582,4 @@ async function historial(req, res) {
   }
 }
 
-module.exports = { listar, crear, importar, actualizar, eliminar, historial };
+module.exports = { listar, crear, importar, actualizar, eliminar, historial, ficha, subirFoto };

@@ -75,7 +75,7 @@ export default function MensajesMasivos() {
       if (alcance === 'grupo') body.grupo_id = parseInt(grupoId);
       if (alcance === 'grado') body.grado = grado;
       const resp = await axiosAuth.post('/api/mensajes-masivos', body);
-      setExito(`Comunicado enviado a ${resp.data.data.total_enviados} de ${resp.data.data.total_destinatarios} familias.`);
+      setExito(`Comunicado enviado — ${resp.data.data.total_destinatarios} familias lo recibieron en Mensajería, ${resp.data.data.total_enviados} también por correo.`);
       setAsunto(''); setMensaje('');
       cargarHistorial();
     } catch (err) {
@@ -92,8 +92,8 @@ export default function MensajesMasivos() {
         <button onClick={() => navigate(rutaPanel)} style={es.btnVolver}>← Volver al panel</button>
 
         <p style={es.ayuda}>
-          Envía un comunicado por WhatsApp a varias familias a la vez — por ejemplo, para avisar una reunión de
-          padres. Cada acudiente también lo recibe como notificación en su portal.
+          Envía un comunicado a varias familias a la vez — por ejemplo, para avisar una reunión de padres.
+          Cada acudiente lo recibe en su bandeja de Mensajería dentro de Playfesor y también por correo electrónico.
         </p>
 
         <div style={es.card}>
@@ -138,9 +138,9 @@ export default function MensajesMasivos() {
             <p style={{ ...es.textoGris, marginTop: '10px' }}>Calculando destinatarios...</p>
           ) : preview && (
             <p style={es.previewTexto}>
-              Llegará a <strong>{preview.total_con_telefono}</strong> estudiante{preview.total_con_telefono !== 1 ? 's' : ''}
-              {' '}({preview.total_mensajes_whatsapp} mensaje{preview.total_mensajes_whatsapp !== 1 ? 's' : ''} de WhatsApp — algunos acudientes comparten el mismo número)
-              {preview.sin_telefono > 0 && `. ${preview.sin_telefono} estudiante${preview.sin_telefono > 1 ? 's' : ''} sin teléfono registrado`}.
+              Llegará a <strong>{preview.total_familias}</strong> familia{preview.total_familias !== 1 ? 's' : ''}
+              {' '}de {preview.total_estudiantes} estudiante{preview.total_estudiantes !== 1 ? 's' : ''}
+              {preview.sin_acudiente_vinculado > 0 && ` — ${preview.sin_acudiente_vinculado} sin acudiente vinculado en la plataforma`}.
             </p>
           )}
         </div>
@@ -171,7 +171,7 @@ export default function MensajesMasivos() {
             disabled={enviando || !asunto.trim() || !mensaje.trim() || (alcance === 'grupo' && !grupoId) || (alcance === 'grado' && !grado)}
             style={{ ...es.btnPrimario, opacity: (enviando || !asunto.trim() || !mensaje.trim()) ? 0.5 : 1 }}
           >
-            {enviando ? 'Enviando...' : '📲 Enviar por WhatsApp'}
+            {enviando ? 'Enviando...' : 'Enviar comunicado'}
           </button>
         </div>
 
@@ -189,7 +189,7 @@ export default function MensajesMasivos() {
                   </div>
                   <p style={es.historialTexto}>{h.mensaje}</p>
                   <p style={es.citaMeta}>
-                    {h.nombre_remitente} · {fechaLarga(h.creado_en)} · {h.total_enviados}/{h.total_destinatarios} enviados
+                    {h.nombre_remitente} · {fechaLarga(h.creado_en)} · {h.total_destinatarios} familias · {h.total_enviados} correos enviados
                   </p>
                 </div>
               ))}

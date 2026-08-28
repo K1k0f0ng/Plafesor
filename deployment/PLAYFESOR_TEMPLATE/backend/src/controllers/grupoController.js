@@ -1,4 +1,5 @@
 const db = require('../database');
+const { ordenApellido } = require('../utils/ordenNombre');
 
 // GET /api/grupos — solo los grupos del colegio del admin
 async function listar(req, res) {
@@ -53,7 +54,7 @@ async function listarEstudiantes(req, res) {
       FROM usuarios u
       JOIN estudiante_grupos eg ON eg.estudiante_id = u.id
       WHERE eg.grupo_id = ?
-      ORDER BY u.nombre ASC
+      ORDER BY ${ordenApellido('u.nombre')} ASC
     `, [id]);
     res.json({ data: filas });
   } catch (err) {

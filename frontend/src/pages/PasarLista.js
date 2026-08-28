@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconClipboard, IconInbox } from '../components/Icons';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const ESTADOS = [
   { valor: 'presente',    etiqueta: 'Presente',    color: '#2e7d32', fondo: '#e8f5e9' },
@@ -210,7 +211,7 @@ export default function PasarLista() {
 
               {estudiantes.map((est, idx) => (
                 <div key={est.estudiante_id} style={{ ...es.fila, background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
-                  <span style={es.nombre}>{est.nombre}</span>
+                  <span style={es.nombre}>{formatearApellidoPrimero(est.nombre)}</span>
                   <div style={es.botones}>
                     {ESTADOS.map(e => (
                       <button

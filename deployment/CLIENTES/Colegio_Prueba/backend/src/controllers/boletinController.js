@@ -18,7 +18,7 @@ async function getMisGrupos(req, res) {
         SELECT DISTINCT g.id, g.nombre, g.grado
         FROM docente_grupos_materias dgm
         JOIN grupos g ON g.id = dgm.grupo_id
-        WHERE dgm.docente_id = ?
+        WHERE dgm.docente_id = ? AND g.activo = TRUE
         ORDER BY g.grado ASC, g.nombre ASC
       `, [userId]);
       return res.json({ data: filas });
@@ -28,7 +28,7 @@ async function getMisGrupos(req, res) {
     const [filas] = await db.query(`
       SELECT id, nombre, grado
       FROM grupos
-      WHERE colegio_id = ?
+      WHERE colegio_id = ? AND activo = TRUE
       ORDER BY grado ASC, nombre ASC
     `, [colegioId]);
     res.json({ data: filas });

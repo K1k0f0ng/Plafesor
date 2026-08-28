@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { IconDownload } from '../components/Icons';
 import { useAuth } from '../context/AuthContext';
+import { formatearApellidoPrimero } from '../utils/ordenNombre';
 import { NOMBRE_INSTITUCION } from '../config/tema';
 
 function nombrePeriodo(periodo) {
@@ -56,7 +57,7 @@ function RenderBoletin({ b }) {
       <div style={es.datosEstudiante}>
         <div style={es.datoItem}>
           <span style={es.datoLabel}>Estudiante</span>
-          <span style={es.datoValor}>{b.estudiante.nombre}</span>
+          <span style={es.datoValor}>{formatearApellidoPrimero(b.estudiante.nombre)}</span>
         </div>
         <div style={es.datoItem}>
           <span style={es.datoLabel}>Grado</span>
@@ -90,7 +91,11 @@ function RenderBoletin({ b }) {
               <tr key={m.materia_id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                 <td style={es.tdImpreso}>{m.materia_nombre}</td>
                 <td style={{ ...es.tdImpreso, textAlign: 'center', fontWeight: '700', fontSize: '15px' }}>
-                  {m.nota_promedio ?? '—'}
+                  {m.nota_promedio ?? (m.pendiente_configuracion ? (
+                    <span style={{ fontSize: '10px', fontWeight: '600', color: '#e65100' }} title="El docente aún no terminó de configurar los porcentajes de las actividades de este período">
+                      Pendiente
+                    </span>
+                  ) : '—')}
                 </td>
                 <td style={{ ...es.tdImpreso, textAlign: 'center' }}>
                   <ChipNivel nivel={m.nivel} />
@@ -186,6 +191,7 @@ export default function Boletin() {
   const { usuario } = useAuth();
   const [paso, setPaso]                   = useState(1);
   const [grupos, setGrupos]               = useState([]);
+  const [gruposCargados, setGruposCargados] = useState(false);
   const [grupoId, setGrupoId]             = useState('');
   const [periodos, setPeriodos]           = useState([]);
   const [periodo, setPeriodo]             = useState('');
@@ -208,9 +214,19 @@ export default function Boletin() {
 
   useEffect(() => {
     axiosAuth.get('/api/boletin/mis-grupos')
-      .then(r => setGrupos(r.data.data || []))
-      .catch(() => setError('No se pudieron cargar los grupos'));
-  }, []);
+      .then(r => {
+        const data = r.data.data || [];
+        setGrupos(data);
+        // Un docente solo puede generar el boletín del grupo que dirige — si
+        // solo tiene ese grupo disponible, se lo precargamos para no obligarlo
+        // a elegir entre una sola opción.
+        if (usuario?.rol === 'docente' && data.length === 1) {
+          setGrupoId(String(data[0].id));
+        }
+        setGruposCargados(true);
+      })
+      .catch(() => { setError('No se pudieron cargar los grupos'); setGruposCargados(true); });
+  }, [usuario]);
 
   useEffect(() => {
     if (!usuario?.colegio_id) return;
@@ -364,28 +380,45 @@ export default function Boletin() {
         {paso === 1 && (
           <div style={{ maxWidth: '520px' }}>
             <h2 style={es.titulo}>Generar Boletín de Desempeño</h2>
-            <p style={es.subtitulo}>Selecciona el grupo y el período.</p>
             {error && <div style={es.errorBox}>{error}</div>}
-            <div style={es.card}>
-              <label style={es.label}>Grupo</label>
-              <select style={es.select} value={grupoId} onChange={e => setGrupoId(e.target.value)}>
-                <option value="">— Selecciona un grupo —</option>
-                {grupos.map(g => <option key={g.id} value={g.id}>{g.grado} · {g.nombre}</option>)}
-              </select>
-              <label style={{ ...es.label, marginTop: '16px' }}>Período</label>
-              <select style={es.select} value={periodo} onChange={e => setPeriodo(e.target.value)}>
-                <option value="">— Selecciona un período —</option>
-                {periodos.map(p => <option key={p.numero} value={p.numero}>{p.nombre}</option>)}
-                <option value="final">Final (Consolidado)</option>
-              </select>
-              <button
-                style={{ ...es.btn, marginTop: '24px', opacity: (!grupoId || !periodo || cargando) ? 0.5 : 1 }}
-                disabled={!grupoId || !periodo || cargando}
-                onClick={cargarEstudiantes}
-              >
-                {cargando ? 'Cargando...' : 'Ver estudiantes →'}
-              </button>
-            </div>
+            {gruposCargados && usuario?.rol === 'docente' && grupos.length === 0 ? (
+              <div style={es.avisoNoDisponible}>
+                No diriges ningún grupo — el boletín oficial solo lo puede generar el director de grupo
+                (o el administrador/rector). Si crees que deberías dirigir un grupo, pídele al administrador
+                que te lo asigne desde "Docentes".
+              </div>
+            ) : (
+              <>
+                <p style={es.subtitulo}>Selecciona el grupo y el período.</p>
+                <div style={es.card}>
+                  <label style={es.label}>Grupo</label>
+                  {usuario?.rol === 'docente' ? (
+                    <div style={es.grupoFijo}>
+                      {grupoSel ? `${grupoSel.grado}° · ${grupoSel.nombre}` : 'Cargando...'}
+                      <span style={es.grupoFijoNota}>Grupo que diriges</span>
+                    </div>
+                  ) : (
+                    <select style={es.select} value={grupoId} onChange={e => setGrupoId(e.target.value)}>
+                      <option value="">— Selecciona un grupo —</option>
+                      {grupos.map(g => <option key={g.id} value={g.id}>{g.grado} · {g.nombre}</option>)}
+                    </select>
+                  )}
+                  <label style={{ ...es.label, marginTop: '16px' }}>Período</label>
+                  <select style={es.select} value={periodo} onChange={e => setPeriodo(e.target.value)}>
+                    <option value="">— Selecciona un período —</option>
+                    {periodos.map(p => <option key={p.numero} value={p.numero}>{p.nombre}</option>)}
+                    <option value="final">Final (Consolidado)</option>
+                  </select>
+                  <button
+                    style={{ ...es.btn, marginTop: '24px', opacity: (!grupoId || !periodo || cargando) ? 0.5 : 1 }}
+                    disabled={!grupoId || !periodo || cargando}
+                    onClick={cargarEstudiantes}
+                  >
+                    {cargando ? 'Cargando...' : 'Ver estudiantes →'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -420,7 +453,7 @@ export default function Boletin() {
                 <tbody>
                   {estudiantes.map(est => (
                     <tr key={est.estudiante_id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={es.td}>{est.nombre}</td>
+                      <td style={es.td}>{formatearApellidoPrimero(est.nombre)}</td>
                       <td style={{ ...es.td, textAlign: 'center', fontWeight: '700', fontSize: '15px' }}>
                         {est.promedio ?? '—'}
                       </td>
@@ -568,6 +601,8 @@ const es = {
   card:      { background: '#fff', borderRadius: '12px', padding: '24px', border: '1px solid #eeeff3', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' },
   label:     { display: 'block', fontSize: '12px', fontWeight: '700', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' },
   select:    { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', color: '#333', background: '#fff', outline: 'none', fontFamily: 'inherit' },
+  grupoFijo: { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #eee', fontSize: '14px', color: '#333', background: '#f8f9ff', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: '600' },
+  grupoFijoNota: { fontSize: '11px', fontWeight: '600', color: '#9aa0c2', textTransform: 'uppercase', letterSpacing: '0.4px' },
   btn:       { background: 'linear-gradient(135deg,var(--color-primario),var(--color-secundario))', color: '#fff', border: 'none', borderRadius: '8px', padding: '11px 20px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' },
   btnVolver: { background: '#f5f5f5', border: '1px solid #ddd', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: '600', color: '#555', cursor: 'pointer', fontFamily: 'inherit' },
   btnVer:    { background: 'linear-gradient(135deg,var(--color-primario),var(--color-secundario))', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' },
