@@ -63,8 +63,8 @@ const apuestas = [
     title: 'Saber quién va a perder el año, antes de que sea tarde',
     body: 'Cada noche el motor cruza promedio, tendencia de las últimas semanas, inasistencia y actividades incumplidas para calcular un score de riesgo por estudiante — con hasta 4 semanas de anticipación al cierre del período.',
     stats: [
-      ['>75%', 'precisión de predicción'],
-      ['>60%', 'recall sobre quienes pierden'],
+      ['3', 'variables cruzadas cada noche'],
+      ['Diario', 'recálculo automático'],
       ['4 sem.', 'de anticipación mínima'],
     ],
     rivals: ['Q10', 'Phidias', 'Moodle', 'Classroom'],
@@ -126,7 +126,8 @@ const featureGroups = [
       'Motor de actividades interactivas con calificación automática',
       'Escala de valoración oficial MEN configurada',
       'Control de asistencia por sesión',
-      'Boletines oficiales listos para imprimir',
+      'Boletines oficiales listos para imprimir, con observaciones redactadas por IA',
+      'PIAR (Plan Individual de Ajustes Razonables) conforme al Decreto 1421 de 2017',
       'Exportación de reportes a Excel en un clic',
     ],
   },
@@ -135,6 +136,7 @@ const featureGroups = [
     title: 'Los padres informados sin saturar rectoría',
     items: [
       'Notificaciones automáticas por WhatsApp: notas, inasistencias, alertas',
+      'Citaciones a reunión y mensajes masivos institucionales por WhatsApp',
       'Portal dedicado para consultar el progreso de sus hijos',
       'Comunicación oficial trazable, no en chats personales',
       'Reducción medible de llamadas telefónicas al centro educativo',
@@ -145,6 +147,7 @@ const featureGroups = [
     title: 'Un gemelo digital de su institución',
     items: [
       'Centro de métricas: salud académica en tiempo real',
+      'Briefing ejecutivo diario para el rector, generado cada mañana',
       'Ranking de grupos y docentes con evolución histórica',
       'Mapas de calor por materia para detectar cuellos de botella',
       'Panel de dirección con la foto general de la institución',
@@ -177,6 +180,10 @@ const capabilities = [
   'Observador académico generado por IA',
   'Tutor IA 24/7 para estudiantes',
   'Planes de mejoramiento generados por IA',
+  'Observaciones de boletín redactadas por IA',
+  'Citaciones y mensajes masivos por WhatsApp',
+  'PIAR conforme al Decreto 1421 de 2017',
+  'Briefing ejecutivo diario para el rector',
   'Gemelo digital de la institución',
 ];
 
@@ -190,7 +197,7 @@ const testimonialStats = [
 const faqs = [
   {
     q: '¿Playfesor ya está funcionando o es un prototipo?',
-    a: 'Está en operación real. Hay centros educativos en Colombia usando Playfesor hoy para gestionar sus procesos académicos completos, no como piloto sino como sistema oficial.',
+    a: 'Está en operación real, gestionando procesos académicos completos como sistema oficial — no como prototipo ni como piloto.',
   },
   {
     q: '¿Cumple con el sistema de evaluación colombiano (MEN)?',
@@ -474,7 +481,7 @@ export default function LandingPage() {
               <div className="eyebrow hero-eyebrow">Sistema Inteligente de Gestión Académica</div>
               <div className="hero-badge">
                 <span className="ping-dot"><span className="ping-dot-ring" /><span className="ping-dot-core" /></span>
-                En operación real en centros educativos colombianos
+                En operación real, no en fase de prueba
               </div>
               <h1 className="hero-title">
                 El sistema de gestión académica que <span className="font-display">piensa</span><br className="br-desktop" /> por su institución.
@@ -620,14 +627,8 @@ export default function LandingPage() {
         <section className="section">
           <div className="section-inner section-inner-narrow">
             <Reveal>
-              <blockquote className="quote">“Antes descubríamos al estudiante en riesgo cuando ya era tarde. Con Playfesor lo vemos en septiembre — y hacemos algo al respecto.”</blockquote>
-              <div className="quote-author">
-                <div className="quote-avatar" />
-                <div>
-                  <div className="quote-name">Rectoría · Institución piloto</div>
-                  <div className="quote-loc">Bogotá, Colombia</div>
-                </div>
-              </div>
+              <div className="eyebrow" style={{ textAlign: 'center', display: 'block' }}>La idea detrás de Playfesor</div>
+              <blockquote className="quote">“Antes se descubría al estudiante en riesgo cuando ya era tarde. Con alerta temprana se ve en septiembre — y todavía se puede hacer algo al respecto.”</blockquote>
             </Reveal>
 
             <div className="stats-grid">
@@ -978,10 +979,7 @@ const styles = `
   .capability-check { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(41,129,251,0.14); color: var(--brand-blue); }
 
   /* Testimonial */
-  .quote { text-align: center; font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1.25; color: var(--ink); }
-  .quote-author { margin-top: 28px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 0.88rem; color: var(--muted-fg); }
-  .quote-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--brand-blue), var(--brand-navy)); }
-  .quote-name { font-weight: 600; color: var(--foreground); }
+  .quote { text-align: center; font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: clamp(1.5rem, 3vw, 2.4rem); line-height: 1.25; color: var(--ink); margin-top: 12px; }
   .stats-grid { margin-top: 64px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px 16px; padding-top: 40px; border-top: 1px solid var(--border); text-align: center; }
   .stats-k { font-size: 1.6rem; font-weight: 700; color: var(--ink); }
   .stats-v { margin-top: 4px; font-size: 0.72rem; color: var(--muted-fg); }
