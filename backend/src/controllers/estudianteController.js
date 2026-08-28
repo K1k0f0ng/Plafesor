@@ -1,0 +1,503 @@
+const bcrypt = require('bcryptjs');
+const db = require('../database');
+
+// Estos endpoints reciben JSON directamente (no solo desde el formulario ni
+// desde la plantilla Excel, que ya normalizan), así que se valida de nuevo
+// aquí: un valor fuera del ENUM no debe tumbar la fila entera con un error
+// críptico de MySQL — simplemente se guarda como vacío.
+const TIPOS_DOC_VALIDOS = ['RC', 'TI', 'CC', 'CE'];
+const GENEROS_VALIDOS = ['M', 'F', 'Otro'];
+
+function normalizarTipoDocumento(v) {
+  if (!v) return null;
+  const up = String(v).trim().toUpperCase();
+  return TIPOS_DOC_VALIDOS.includes(up) ? up : null;
+}
+function normalizarGenero(v) {
+  return GENEROS_VALIDOS.includes(v) ? v : null;
+}
+function normalizarFecha(v) {
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(String(v).trim()) ? v : null;
+}
+
+// Inserta o actualiza los datos de matrícula (identificación, demográficos,
+// poblacionales) de un estudiante. Todos los campos son opcionales.
+async function guardarDatosEstudiante(conn, estudianteId, datos) {
+  const {
+    fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
+    discapacidad, grupo_etnico, victima_conflicto,
+  } = datos;
+
+  await conn.query(
+    `INSERT INTO estudiantes_datos
+       (estudiante_id, fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben, discapacidad, grupo_etnico, victima_conflicto)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       fecha_nacimiento = VALUES(fecha_nacimiento), lugar_nacimiento = VALUES(lugar_nacimiento),
+       genero = VALUES(genero), grupo_sanguineo = VALUES(grupo_sanguineo),
+       direccion = VALUES(direccion), eps_sisben = VALUES(eps_sisben),
+       discapacidad = VALUES(discapacidad), grupo_etnico = VALUES(grupo_etnico),
+       victima_conflicto = VALUES(victima_conflicto)`,
+    [
+      estudianteId, normalizarFecha(fecha_nacimiento), lugar_nacimiento || null, normalizarGenero(genero), grupo_sanguineo || null,
+      direccion || null, eps_sisben || null, discapacidad || null, grupo_etnico || null, !!victima_conflicto,
+    ]
+  );
+}
+
+// Crea (o reutiliza, si el correo ya pertenece a un padre existente) la
+// cuenta del acudiente y la vincula al estudiante. Lanza un error con
+// `codigoPersonalizado` para que el llamador lo distinga de un fallo genérico.
+async function vincularAcudiente(conn, acudiente, estudianteId, colegioId) {
+  const { nombre, email, password, parentesco, tipo_documento, numero_documento } = acudiente;
+  if (!email) return null;
+
+  const [[existente]] = await conn.query('SELECT id, rol FROM usuarios WHERE email = ?', [email]);
+  let padreId;
+
+  if (existente) {
+    if (existente.rol !== 'padre') {
+      const err = new Error(`El correo del acudiente (${email}) ya está en uso por otro usuario`);
+      err.codigoPersonalizado = 'ACUDIENTE_EMAIL_EN_USO';
+      throw err;
+    }
+    padreId = existente.id;
+  } else {
+    if (!nombre || !password) {
+      const err = new Error('Nombre y contraseña del acudiente son obligatorios para crear su cuenta');
+      err.codigoPersonalizado = 'ACUDIENTE_DATOS_INCOMPLETOS';
+      throw err;
+    }
+    const hash = await bcrypt.hash(String(password), 10);
+    const [result] = await conn.query(
+      'INSERT INTO usuarios (nombre, email, password, rol, colegio_id, tipo_documento, numero_documento) VALUES (?, ?, ?, "padre", ?, ?, ?)',
+      [nombre, email, hash, colegioId || null, normalizarTipoDocumento(tipo_documento), numero_documento || null]
+    );
+    padreId = result.insertId;
+  }
+
+  await conn.query(
+    'INSERT IGNORE INTO padre_estudiante (padre_id, estudiante_id, parentesco) VALUES (?, ?, ?)',
+    [padreId, estudianteId, parentesco || null]
+  );
+  return padreId;
+}
+
+// GET /api/estudiantes?grupo_id=X — solo los del colegio del admin
+async function listar(req, res) {
+  const { grupo_id } = req.query;
+  try {
+    let sql = `
+      SELECT u.id, u.nombre, u.email, u.activo, u.colegio_id,
+             u.telefono_padres, u.requiere_piar, u.tipo_documento, u.numero_documento,
+             eg.grupo_id,
+             g.nombre AS nombre_grupo, g.grado,
+             ed.fecha_nacimiento, ed.lugar_nacimiento, ed.genero, ed.grupo_sanguineo,
+             ed.direccion, ed.eps_sisben, ed.discapacidad, ed.grupo_etnico, ed.victima_conflicto,
+             (
+               SELECT GROUP_CONCAT(p.nombre SEPARATOR ', ')
+               FROM padre_estudiante pe JOIN usuarios p ON p.id = pe.padre_id
+               WHERE pe.estudiante_id = u.id
+             ) AS acudientes
+      FROM usuarios u
+      LEFT JOIN estudiante_grupos eg ON eg.estudiante_id = u.id
+      LEFT JOIN grupos g ON g.id = eg.grupo_id
+      LEFT JOIN estudiantes_datos ed ON ed.estudiante_id = u.id
+      WHERE u.rol = 'estudiante'
+        AND (u.colegio_id = ? OR g.colegio_id = ?)
+    `;
+    const params = [req.usuario.colegio_id, req.usuario.colegio_id];
+    if (grupo_id) {
+      sql += ' AND eg.grupo_id = ?';
+      params.push(grupo_id);
+    }
+    sql += ' ORDER BY u.nombre ASC';
+
+    const [filas] = await db.query(sql, params);
+    res.json({ data: filas });
+  } catch (err) {
+    console.error('Error al listar estudiantes:', err);
+    res.status(500).json({ error: 'Error al obtener los estudiantes' });
+  }
+}
+
+// POST /api/estudiantes — colegio_id viene del JWT
+async function crear(req, res) {
+  const {
+    nombre, email, password, grupo_id, telefono_padres, requiere_piar,
+    tipo_documento, numero_documento,
+    fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
+    discapacidad, grupo_etnico, victima_conflicto,
+    acudiente_nombre, acudiente_email, acudiente_password, acudiente_parentesco,
+    acudiente_tipo_documento, acudiente_numero_documento,
+  } = req.body;
+  const colegio_id = req.usuario.colegio_id;
+
+  if (!nombre || !email || !password) {
+    return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const hash = await bcrypt.hash(password, 10);
+    const [result] = await conn.query(
+      `INSERT INTO usuarios (nombre, email, password, rol, colegio_id, telefono_padres, requiere_piar, tipo_documento, numero_documento)
+       VALUES (?, ?, ?, "estudiante", ?, ?, ?, ?, ?)`,
+      [nombre, email, hash, colegio_id || null, telefono_padres || null, !!requiere_piar, normalizarTipoDocumento(tipo_documento), numero_documento || null]
+    );
+
+    const estudianteId = result.insertId;
+
+    if (grupo_id) {
+      await conn.query(
+        'INSERT INTO estudiante_grupos (estudiante_id, grupo_id) VALUES (?, ?)',
+        [estudianteId, grupo_id]
+      );
+    }
+
+    await guardarDatosEstudiante(conn, estudianteId, {
+      fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
+      discapacidad, grupo_etnico, victima_conflicto,
+    });
+
+    if (acudiente_email) {
+      await vincularAcudiente(conn, {
+        nombre: acudiente_nombre, email: acudiente_email, password: acudiente_password,
+        parentesco: acudiente_parentesco, tipo_documento: acudiente_tipo_documento, numero_documento: acudiente_numero_documento,
+      }, estudianteId, colegio_id);
+    }
+
+    await conn.commit();
+    res.status(201).json({ mensaje: 'Estudiante creado', data: { id: estudianteId, nombre, email } });
+  } catch (err) {
+    await conn.rollback();
+    if (err.codigoPersonalizado) {
+      return res.status(409).json({ error: err.message });
+    }
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un usuario con ese email' });
+    }
+    console.error('Error al crear estudiante:', err);
+    res.status(500).json({ error: 'Error al crear el estudiante' });
+  } finally {
+    conn.release();
+  }
+}
+
+// POST /api/estudiantes/importar — importación masiva (plantilla Excel)
+async function importar(req, res) {
+  const { estudiantes } = req.body; // array de objetos
+
+  if (!Array.isArray(estudiantes) || estudiantes.length === 0) {
+    return res.status(400).json({ error: 'Se requiere un array de estudiantes' });
+  }
+
+  const conn = await db.getConnection();
+  const creados = [];
+  const errores = [];
+  const avisos = [];
+
+  try {
+    await conn.beginTransaction();
+
+    for (const est of estudiantes) {
+      try {
+        if (!est.password || String(est.password).trim().length < 6) {
+          errores.push({ email: est.email, error: 'Contraseña requerida (mínimo 6 caracteres)' });
+          continue;
+        }
+        const hash = await bcrypt.hash(String(est.password), 10);
+        const [result] = await conn.query(
+          `INSERT INTO usuarios (nombre, email, password, rol, colegio_id, telefono_padres, requiere_piar, tipo_documento, numero_documento)
+           VALUES (?, ?, ?, "estudiante", ?, ?, ?, ?, ?)`,
+          [
+            est.nombre, est.email, hash, req.usuario.colegio_id || null,
+            est.telefono_padres || null, !!est.requiere_piar,
+            normalizarTipoDocumento(est.tipo_documento), est.numero_documento || null,
+          ]
+        );
+        const estudianteId = result.insertId;
+
+        if (est.grupo_id) {
+          await conn.query(
+            'INSERT INTO estudiante_grupos (estudiante_id, grupo_id) VALUES (?, ?)',
+            [estudianteId, est.grupo_id]
+          );
+        }
+
+        await guardarDatosEstudiante(conn, estudianteId, {
+          fecha_nacimiento: est.fecha_nacimiento, lugar_nacimiento: est.lugar_nacimiento,
+          genero: est.genero, grupo_sanguineo: est.grupo_sanguineo,
+          direccion: est.direccion, eps_sisben: est.eps_sisben,
+          discapacidad: est.discapacidad, grupo_etnico: est.grupo_etnico,
+          victima_conflicto: est.victima_conflicto,
+        });
+
+        if (est.acudiente_email) {
+          try {
+            await vincularAcudiente(conn, {
+              nombre: est.acudiente_nombre, email: est.acudiente_email, password: est.acudiente_password,
+              parentesco: est.acudiente_parentesco, tipo_documento: est.acudiente_tipo_documento,
+              numero_documento: est.acudiente_numero_documento,
+            }, estudianteId, req.usuario.colegio_id);
+          } catch (eAcudiente) {
+            avisos.push({ email: est.email, aviso: `Estudiante creado, pero no se pudo vincular al acudiente: ${eAcudiente.message}` });
+          }
+        }
+
+        creados.push(est.email);
+      } catch (e) {
+        errores.push({ email: est.email, error: e.code === 'ER_DUP_ENTRY' ? 'Email duplicado' : e.message });
+      }
+    }
+
+    await conn.commit();
+    res.json({ mensaje: `${creados.length} estudiantes importados`, creados, errores, avisos });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Error en importación:', err);
+    res.status(500).json({ error: 'Error en la importación masiva' });
+  } finally {
+    conn.release();
+  }
+}
+
+// PUT /api/estudiantes/:id — colegio_id viene del JWT
+async function actualizar(req, res) {
+  const { id } = req.params;
+  const {
+    nombre, email, grupo_id, telefono_padres, requiere_piar,
+    tipo_documento, numero_documento,
+    fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
+    discapacidad, grupo_etnico, victima_conflicto,
+    acudiente_nombre, acudiente_email, acudiente_password, acudiente_parentesco,
+    acudiente_tipo_documento, acudiente_numero_documento,
+  } = req.body;
+  const colegio_id = req.usuario.colegio_id;
+
+  if (!nombre || !email) {
+    return res.status(400).json({ error: 'Nombre y email son obligatorios' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    await conn.query(
+      `UPDATE usuarios SET nombre = ?, email = ?, colegio_id = ?, telefono_padres = ?, requiere_piar = ?, tipo_documento = ?, numero_documento = ?
+       WHERE id = ? AND rol = 'estudiante'`,
+      [nombre, email, colegio_id || null, telefono_padres || null, !!requiere_piar, normalizarTipoDocumento(tipo_documento), numero_documento || null, id]
+    );
+
+    // Reasignar grupo
+    await conn.query('DELETE FROM estudiante_grupos WHERE estudiante_id = ?', [id]);
+    if (grupo_id) {
+      await conn.query(
+        'INSERT INTO estudiante_grupos (estudiante_id, grupo_id) VALUES (?, ?)',
+        [id, grupo_id]
+      );
+    }
+
+    await guardarDatosEstudiante(conn, id, {
+      fecha_nacimiento, lugar_nacimiento, genero, grupo_sanguineo, direccion, eps_sisben,
+      discapacidad, grupo_etnico, victima_conflicto,
+    });
+
+    if (acudiente_email) {
+      await vincularAcudiente(conn, {
+        nombre: acudiente_nombre, email: acudiente_email, password: acudiente_password,
+        parentesco: acudiente_parentesco, tipo_documento: acudiente_tipo_documento, numero_documento: acudiente_numero_documento,
+      }, id, colegio_id);
+    }
+
+    await conn.commit();
+    res.json({ mensaje: 'Estudiante actualizado' });
+  } catch (err) {
+    await conn.rollback();
+    if (err.codigoPersonalizado) {
+      return res.status(409).json({ error: err.message });
+    }
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un usuario con ese email' });
+    }
+    console.error('Error al actualizar estudiante:', err);
+    res.status(500).json({ error: 'Error al actualizar el estudiante' });
+  } finally {
+    conn.release();
+  }
+}
+
+// DELETE /api/estudiantes/:id (desactiva)
+async function eliminar(req, res) {
+  const { id } = req.params;
+  try {
+    await db.query('UPDATE usuarios SET activo = FALSE WHERE id = ? AND rol = "estudiante"', [id]);
+    res.json({ mensaje: 'Estudiante desactivado' });
+  } catch (err) {
+    console.error('Error al desactivar estudiante:', err);
+    res.status(500).json({ error: 'Error al desactivar el estudiante' });
+  }
+}
+
+// GET /api/estudiantes/:id/historial
+async function historial(req, res) {
+  const eid = parseInt(req.params.id);
+  const u = req.usuario;
+
+  // Estudiante solo puede ver su propio historial
+  if (u.rol === 'estudiante' && u.id !== eid) {
+    return res.status(403).json({ error: 'Solo puedes ver tu propio historial' });
+  }
+
+  // Padre solo puede ver el historial de un hijo vinculado a su cuenta
+  if (u.rol === 'padre') {
+    const [[vinculo]] = await db.query(
+      'SELECT 1 FROM padre_estudiante WHERE padre_id = ? AND estudiante_id = ? LIMIT 1',
+      [u.id, eid]
+    );
+    if (!vinculo) return res.status(403).json({ error: 'No tienes acceso a este estudiante' });
+  }
+
+  // Admin/director solo pueden ver estudiantes de su propio colegio
+  if (u.rol === 'admin' || u.rol === 'director') {
+    const [[mismoColegio]] = await db.query(
+      'SELECT 1 FROM usuarios WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [eid, u.colegio_id]
+    );
+    if (!mismoColegio) return res.status(403).json({ error: 'Ese estudiante no pertenece a tu colegio' });
+  }
+
+  try {
+    const [
+      [infoRows],
+      [porMateriaRows],
+      [porPeriodoRows],
+      [recientesRows],
+      [tendenciaRows],
+    ] = await Promise.all([
+
+      // 1. Datos del estudiante
+      db.query(`
+        SELECT u.nombre, u.email,
+          g.nombre AS grupo, g.grado, c.nombre AS colegio
+        FROM usuarios u
+        LEFT JOIN estudiante_grupos eg ON eg.estudiante_id = u.id
+        LEFT JOIN grupos g ON g.id = eg.grupo_id
+        LEFT JOIN colegios c ON c.id = u.colegio_id
+        WHERE u.id = ?
+        LIMIT 1
+      `, [eid]),
+
+      // 2. Promedio y distribución MEN por materia — "regla de tres": suma de
+      // notas obtenidas ÷ actividades asignadas en cada grupo del estudiante
+      // (no ÷ solo las que entregó), igual que el boletín oficial.
+      db.query(`
+        SELECT
+          m.id AS materia_id, m.nombre AS materia, m.codigo,
+          COUNT(DISTINCT mejor.actividad_id)                                            AS total,
+          ROUND(SUM(mejor.nota) / NULLIF(COUNT(DISTINCT a.id), 0), 1)                    AS promedio,
+          SUM(CASE WHEN mejor.nota < 3.5              THEN 1 ELSE 0 END)               AS bajo,
+          SUM(CASE WHEN mejor.nota >= 3.5 AND mejor.nota < 4.0  THEN 1 ELSE 0 END)      AS basico,
+          SUM(CASE WHEN mejor.nota >= 4.0 AND mejor.nota <= 4.5 THEN 1 ELSE 0 END)      AS alto,
+          SUM(CASE WHEN mejor.nota > 4.5              THEN 1 ELSE 0 END)               AS superior
+        FROM estudiante_grupos eg
+        JOIN actividades a ON a.grupo_id = eg.grupo_id AND a.activa = TRUE
+        JOIN materias m ON m.id = a.materia_id
+        LEFT JOIN (
+          SELECT actividad_id, estudiante_id, MAX(nota) AS nota
+          FROM resultados_actividades
+          GROUP BY actividad_id, estudiante_id
+        ) mejor ON mejor.actividad_id = a.id AND mejor.estudiante_id = eg.estudiante_id
+        WHERE eg.estudiante_id = ?
+        GROUP BY m.id, m.nombre, m.codigo
+        ORDER BY promedio DESC
+      `, [eid]),
+
+      // 3. Promedio por período — mismo criterio de regla de tres
+      db.query(`
+        SELECT
+          a.periodo,
+          COUNT(DISTINCT mejor.actividad_id)                          AS total,
+          ROUND(SUM(mejor.nota) / NULLIF(COUNT(DISTINCT a.id), 0), 2) AS promedio
+        FROM estudiante_grupos eg
+        JOIN actividades a ON a.grupo_id = eg.grupo_id AND a.activa = TRUE
+        LEFT JOIN (
+          SELECT actividad_id, estudiante_id, MAX(nota) AS nota
+          FROM resultados_actividades
+          GROUP BY actividad_id, estudiante_id
+        ) mejor ON mejor.actividad_id = a.id AND mejor.estudiante_id = eg.estudiante_id
+        WHERE eg.estudiante_id = ?
+        GROUP BY a.periodo
+        ORDER BY a.periodo ASC
+      `, [eid]),
+
+      // 4. Actividades recientes (últimas 15)
+      db.query(`
+        SELECT
+          a.titulo, a.periodo, a.tipo,
+          m.nombre AS materia,
+          ra.nota, ra.completada_en,
+          CASE
+            WHEN ra.nota < 3.5 THEN 'Bajo'
+            WHEN ra.nota < 4.0 THEN 'Básico'
+            WHEN ra.nota <= 4.5 THEN 'Alto'
+            ELSE 'Superior'
+          END AS nivel
+        FROM resultados_actividades ra
+        JOIN actividades a ON a.id = ra.actividad_id
+        JOIN materias m ON m.id = a.materia_id
+        WHERE ra.estudiante_id = ?
+        ORDER BY ra.completada_en DESC
+        LIMIT 15
+      `, [eid]),
+
+      // 5. Tendencia semanal últimas 8 semanas
+      db.query(`
+        SELECT
+          YEARWEEK(ra.completada_en, 1) AS semana_num,
+          DATE(MIN(ra.completada_en))   AS fecha_inicio,
+          ROUND(AVG(ra.nota), 2)        AS promedio,
+          COUNT(ra.id)                  AS total
+        FROM resultados_actividades ra
+        JOIN actividades a ON a.id = ra.actividad_id AND a.activa = TRUE
+        WHERE ra.estudiante_id = ?
+          AND ra.completada_en >= DATE_SUB(NOW(), INTERVAL 8 WEEK)
+          AND ra.id = (
+            SELECT ra2.id FROM resultados_actividades ra2
+            WHERE ra2.estudiante_id = ra.estudiante_id AND ra2.actividad_id = ra.actividad_id
+            ORDER BY ra2.nota DESC, ra2.completada_en DESC LIMIT 1
+          )
+        GROUP BY YEARWEEK(ra.completada_en, 1)
+        ORDER BY semana_num ASC
+      `, [eid]),
+    ]);
+
+    const info = infoRows[0] || {};
+    const totalNotas = porMateriaRows.reduce((s, m) => s + (parseInt(m.total) || 0), 0);
+    const promedioGlobal = porMateriaRows.length > 0
+      ? parseFloat((porMateriaRows.reduce((s, m) => s + (parseFloat(m.promedio) || 0), 0) / porMateriaRows.length).toFixed(1))
+      : null;
+
+    res.json({
+      data: {
+        estudiante:      info.nombre || '',
+        grupo:           info.grupo  || '',
+        grado:           info.grado  || '',
+        colegio:         info.colegio || '',
+        promedioGlobal,
+        totalActividades: totalNotas,
+        porMateria:      porMateriaRows,
+        porPeriodo:      porPeriodoRows,
+        recientes:       recientesRows,
+        tendencia:       tendenciaRows,
+      },
+    });
+  } catch (err) {
+    console.error('Error en historial estudiante:', err);
+    res.status(500).json({ error: 'Error al obtener el historial' });
+  }
+}
+
+module.exports = { listar, crear, importar, actualizar, eliminar, historial };

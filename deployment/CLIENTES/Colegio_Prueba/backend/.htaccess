@@ -1,0 +1,24 @@
+# Redirige todo el tráfico al proceso Node.js gestionado por Passenger
+PassengerNodejs /usr/local/bin/node
+
+# No servir archivos estáticos directamente
+DirectoryIndex disabled
+
+# CORS — reemplaza este dominio por el del frontend de este colegio (debe coincidir
+# exactamente con CORS_ORIGINS en backend/.env). Ver docs/HOSTING.md.
+<IfModule mod_headers.c>
+  Header always set Access-Control-Allow-Origin "https://prueba.playfesor.co"
+  Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+  Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
+  Header always set Access-Control-Allow-Credentials "true"
+  Header always set Access-Control-Max-Age "86400"
+</IfModule>
+
+RewriteEngine On
+
+# Responder 200 a solicitudes preflight OPTIONS sin pasar a Node.js
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule .* - [R=200,L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ index.js [L]

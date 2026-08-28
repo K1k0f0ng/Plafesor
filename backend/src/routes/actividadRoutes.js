@@ -1,0 +1,27 @@
+const express = require('express');
+const router = express.Router();
+const ctrl = require('../controllers/actividadController');
+const { verificarToken, permitirRoles } = require('../middlewares/auth');
+
+router.use(verificarToken);
+
+// Rutas específicas primero (antes de /:id)
+router.get('/docente',      permitirRoles('docente'),                         ctrl.listarParaDocente);
+router.get('/estudiante',   permitirRoles('estudiante'),                      ctrl.listarParaEstudiante);
+router.post('/generar-ia',  permitirRoles('docente'),                         ctrl.generarConIA);
+router.get('/mis-materias',      permitirRoles('docente', 'director', 'admin'), ctrl.misMaterias);
+router.get('/libro',             permitirRoles('docente', 'director', 'admin'), ctrl.libroCalificaciones);
+router.post('/calificar-manual', permitirRoles('docente'),                      ctrl.calificarManual);
+router.get('/banco',             permitirRoles('docente'),                      ctrl.listarBanco);
+
+router.get('/:id/pendientes',         permitirRoles('docente'),                    ctrl.obtenerPendientes);
+router.post('/:id/copiar',            permitirRoles('docente'),                    ctrl.copiarDelBanco);
+router.post('/:id/generar-recuperacion', permitirRoles('estudiante'),              ctrl.generarRecuperacion);
+router.get('/:id',                 permitirRoles('admin', 'docente', 'estudiante'), ctrl.obtener);
+router.post('/',                   permitirRoles('docente'), ctrl.crear);
+router.put('/:id',                 permitirRoles('docente'), ctrl.actualizar);
+router.delete('/:id',              permitirRoles('docente'), ctrl.eliminar);
+router.post('/:id/responder',      permitirRoles('estudiante'), ctrl.responder);
+router.get('/:id/resultado',       permitirRoles('estudiante'), ctrl.obtenerResultado);
+
+module.exports = router;

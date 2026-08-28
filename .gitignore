@@ -1,0 +1,44 @@
+# Dependencias — se reinstalan con npm install en cada máquina
+node_modules/
+
+# Builds generados — se regeneran con npm run build
+build/
+dist/
+
+# Variables de entorno — contienen contraseñas, tokens y secretos reales.
+# Los .env.example sí se versionan (son plantillas sin datos reales).
+.env
+.env.local
+.env.development.local
+.env.production.local
+.env.production
+!.env.example
+
+# Archivos subidos por usuarios (logos, etc.) — no son código, no deben
+# versionarse. El backend crea esta carpeta automáticamente si no existe.
+uploads/logos/
+
+# Volcados de la base de datos real — contienen datos personales de
+# estudiantes, docentes y padres (nombres, correos, teléfonos, hashes de
+# contraseña). Nunca deben entrar al control de versiones, ni siquiera en
+# un repositorio local. Usar database/schema.sql (sin datos) para instalar.
+*.sql
+!database/schema.sql
+!database/migrations/*.sql
+!deployment/**/database/*.sql
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cobertura de tests
+coverage/
+
+# Archivos del sistema operativo / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Configuración local de Claude Code — específica de esta máquina, no es código del proyecto
+.claude/
