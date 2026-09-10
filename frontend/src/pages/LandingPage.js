@@ -57,6 +57,13 @@ const navLinks = [
   { href: '#contacto', label: 'Contacto' },
 ];
 
+const socialLinks = [
+  { label: 'Instagram', href: 'https://www.instagram.com/playfesor.co/', icon: <IconInstagram /> },
+  { label: 'Facebook', href: 'https://www.facebook.com/profile.php?id=61594414943415', icon: <IconFacebook /> },
+  { label: 'TikTok', href: null, icon: <IconTikTok /> },
+  { label: 'LinkedIn', href: null, icon: <IconLinkedIn /> },
+];
+
 const WHATSAPP_NUMERO = '573015179988';
 const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent('Hola, quiero más información sobre Playfesor.')}`;
 
@@ -125,7 +132,7 @@ const apuestas = [
 
 const featureGroups = [
   {
-    tag: 'Gestión académica',
+    tag: 'Operación escolar',
     title: 'El día a día del centro educativo, sin fricción',
     items: [
       'Instituciones, grupos, docentes, estudiantes y materias en una sola base',
@@ -223,7 +230,7 @@ const faqs = [
   },
   {
     q: '¿Qué hace diferente a Playfesor de un sistema de gestión académica tradicional?',
-    a: 'Playfesor combina gestión académica completa con inteligencia artificial predictiva, copiloto conversacional y observador automático en un solo sistema — diseñado específicamente para el sistema educativo colombiano, no como módulos separados ni como una traducción genérica.',
+    a: 'Playfesor combina administración escolar completa con inteligencia artificial predictiva, copiloto conversacional y observador automático en un solo sistema — diseñado específicamente para el sistema educativo colombiano, no como módulos separados ni como una traducción genérica.',
   },
 ];
 
@@ -299,6 +306,42 @@ function IconMail() {
   );
 }
 
+function IconInstagram() {
+  return (
+    <svg viewBox="0 0 24 24" className="social-icon" fill="none">
+      <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="2" />
+      <circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconFacebook() {
+  return (
+    <svg viewBox="0 0 24 24" className="social-icon" fill="none">
+      <path d="M14 21v-7.5h2.5l.5-3H14V8.5c0-.9.25-1.5 1.6-1.5H17V4.3C16.7 4.25 15.8 4 14.7 4 12.5 4 11 5.3 11 7.8v2.7H8.5v3H11V21h3z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconTikTok() {
+  return (
+    <svg viewBox="0 0 24 24" className="social-icon" fill="none">
+      <path d="M13.5 3v10.9a2.9 2.9 0 1 1-2.1-2.79" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.5 3c.3 2.3 1.9 4.1 4.2 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconLinkedIn() {
+  return (
+    <svg viewBox="0 0 24 24" className="social-icon" fill="none">
+      <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2" />
+      <path d="M7.5 10.2V17M7.5 7.2v.1M11 17v-6.8M11 12.7c0-1.4 1-2.5 2.5-2.5s2.5 1.1 2.5 2.5V17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconPin() {
   return (
     <svg viewBox="0 0 24 24" className="contact-icon" fill="none">
@@ -370,6 +413,33 @@ const ecoBenefits = [
   'Se actualiza cada vez que alguien registra algo',
 ];
 
+const howItWorksSteps = [
+  {
+    n: '01',
+    icon: <IconTeacherRole />,
+    title: 'Se registra',
+    desc: 'El docente marca asistencia, califica actividades y deja una nota — en segundos, no en planillas.',
+  },
+  {
+    n: '02',
+    icon: <IconTrend />,
+    title: 'La IA lo procesa',
+    desc: 'Cada noche, a las 03:14 AM, el sistema cruza los datos y calcula el riesgo de cada estudiante.',
+  },
+  {
+    n: '03',
+    icon: <IconRector />,
+    title: 'Rectoría decide',
+    desc: 'El panel y el Copiloto muestran qué grupos necesitan atención, antes de que el problema crezca.',
+  },
+  {
+    n: '04',
+    icon: <IconFamilyRole />,
+    title: 'La familia se entera',
+    desc: 'Boletines, alertas y observaciones llegan directo al WhatsApp del acudiente.',
+  },
+];
+
 function EcosistemaDiagram() {
   return (
     <div className="eco-diagram">
@@ -389,6 +459,23 @@ function EcosistemaDiagram() {
           <span className="eco-node-label">{n.label}</span>
           <span className="eco-node-desc">{n.desc}</span>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function HowItWorksFlow() {
+  return (
+    <div className="flow-strip">
+      <span className="flow-pulse" aria-hidden="true" />
+      {howItWorksSteps.map((s, i) => (
+        <Reveal as="div" delay={i * 120} className="flow-step" key={s.n}>
+          <span className="flow-step-icon">{s.icon}</span>
+          <span className="flow-step-n">Paso {s.n}</span>
+          <div className="flow-step-title">{s.title}</div>
+          <p className="flow-step-desc">{s.desc}</p>
+          {i < howItWorksSteps.length - 1 && <span className="flow-step-arrow" aria-hidden="true">→</span>}
+        </Reveal>
       ))}
     </div>
   );
@@ -494,60 +581,131 @@ const aiCapabilities = [
   { name: 'Planes de mejoramiento automáticos', desc: 'Cuando un estudiante pierde una materia, el plan se genera con base en sus dificultades específicas.', demo: <PlanDemo />, span: 2 },
 ];
 
-function HeroMockup() {
-  const sidebarItems = ['Panel', 'Estudiantes', 'Docentes', 'Actividades', 'Riesgo académico', 'Copiloto IA', 'Reportes'];
-  const metrics = [
-    { k: 'Salud académica', v: '82%', t: '+3.4 vs. periodo anterior' },
-    { k: 'Estudiantes en riesgo', v: '47', t: 'de 1,240 · alerta temprana' },
-    { k: 'Asistencia semanal', v: '94%', t: '8 grupos por debajo del umbral' },
-  ];
-  const bars = [32, 41, 28, 52, 47, 63, 55, 68, 71, 58, 74, 82, 76, 69, 88];
+/* ---------------------------------------------------------------
+   Hero — "tablero vivo": datos de ejemplo del panel institucional
+   (vista ilustrativa del producto, sin fotos ni mockups externos)
+--------------------------------------------------------------- */
+
+const heroGradeRisk = [
+  { g: '5°', p: '3.9', s: 'ok' },
+  { g: '6°', p: '3.1', s: 'warn' },
+  { g: '7°', p: '2.7', s: 'crit' },
+  { g: '8°', p: '3.7', s: 'ok' },
+  { g: '9°', p: '4.0', s: 'ok' },
+  { g: '10°', p: '2.9', s: 'crit' },
+  { g: '11°', p: '3.4', s: 'warn' },
+];
+
+const heroSignals = [
+  '03:14 AM · motor de riesgo ejecutado sobre 3 variables',
+  'Riesgo alto detectado en 7° y 10° · priorizar esta semana',
+  'Física 10° · 12 de 28 estudiantes por debajo de 3.0',
+  'WhatsApp · alerta de ausencia y bajo rendimiento al acudiente',
+  'Observador académico · redactado para revisión del docente',
+  'Boletín MEN · escala de valoración oficial colombiana',
+  'Copiloto de rectoría · respondiendo con datos reales',
+  'Tutor IA · acompañando al estudiante fuera del horario de clase',
+  'Gemelo digital · proyectando el cierre del período',
+];
+
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduced(mq.matches);
+    update();
+    if (mq.addEventListener) mq.addEventListener('change', update);
+    else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', update);
+      else mq.removeListener(update);
+    };
+  }, []);
+
+  return reduced;
+}
+
+/* Escribe la señal del panel carácter por carácter; se desactiva si el
+   usuario pidió menos movimiento o si el panel aún no está en pantalla. */
+function useTypewriter(lines, active) {
+  const [idx, setIdx] = useState(0);
+  const [char, setChar] = useState(0);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const line = lines[idx % lines.length];
+    if (char < line.length) {
+      const t = setTimeout(() => setChar((c) => c + 1), 24);
+      return () => clearTimeout(t);
+    }
+    const hold = setTimeout(() => {
+      setChar(0);
+      setIdx((n) => n + 1);
+    }, 2600);
+    return () => clearTimeout(hold);
+  }, [char, idx, active, lines]);
+
+  return active ? lines[idx % lines.length].slice(0, char) : lines[0];
+}
+
+/* Panel del producto dibujado por completo con HTML/CSS: es el producto
+   funcionando lo que se ve en el primer pantallazo, no una foto. */
+function HeroLivePanel() {
+  const reduced = usePrefersReducedMotion();
+  const [panelRef, panelInView] = useInView(0.25);
+  const alerta = useTypewriter(heroSignals, panelInView && !reduced);
 
   return (
-    <div className="mockup-frame">
-      <div className="mockup-window">
-        <div className="mockup-titlebar">
-          <span /><span /><span />
-          <div className="mockup-path">app.playfesor.co · Centro de mando · Colegio San Rafael</div>
-        </div>
-        <div className="mockup-body">
-          <aside className="mockup-sidebar">
-            {sidebarItems.map((item, i) => (
-              <div key={item} className={`mockup-sidebar-item ${i === 4 ? 'is-active' : ''}`}>{item}</div>
-            ))}
-          </aside>
-          <div className="mockup-main">
-            <div className="mockup-metrics">
-              {metrics.map((m) => (
-                <div className="mockup-metric-card" key={m.k}>
-                  <div className="mockup-metric-label">{m.k}</div>
-                  <div className="mockup-metric-value">{m.v}</div>
-                  <div className="mockup-metric-trend">{m.t}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mockup-split">
-              <div className="mockup-chart-card">
-                <div className="mockup-chart-head">
-                  <span>Riesgo académico predictivo</span>
-                  <span className="mockup-chart-time">Actualizado 03:14</span>
-                </div>
-                <div className="mockup-chart-bars">
-                  {bars.map((h, i) => (
-                    <div key={i} style={{ height: `${h}%` }} className={`mockup-bar ${h > 70 ? 'is-high' : h > 50 ? 'is-mid' : 'is-low'}`} />
-                  ))}
-                </div>
-                <div className="mockup-chart-labels"><span>Grado 6°</span><span>Grado 11°</span></div>
-              </div>
-              <div className="mockup-copilot-card">
-                <div className="mockup-copilot-label">Copiloto de Rectoría</div>
-                <div className="mockup-copilot-q">¿Cuáles fueron los 3 grupos con mayor caída en matemáticas este periodo?</div>
-                <div className="mockup-copilot-a"><strong>7°B, 9°A y 10°C</strong> presentan caídas de −0.6, −0.4 y −0.3. Docente común: prof. Rodríguez.</div>
-                <div className="mockup-copilot-foot">Basado en datos reales de su institución</div>
-              </div>
-            </div>
+    <div className="hero-panel" ref={panelRef}>
+      <div className="hero-panel-head">
+        <span className="hero-panel-folio">Panel institucional · vista de ejemplo</span>
+        <span className="hero-panel-badge"><i className="hero-live-dot" aria-hidden="true" />03:14 AM</span>
+      </div>
+
+      <div className="hero-panel-label">Riesgo académico por grado</div>
+      <div className="hero-heatmap">
+        {heroGradeRisk.map((g, i) => (
+          <div className={`hero-heatmap-cell is-${g.s}`} style={{ animationDelay: `${i * 90}ms` }} key={g.g}>
+            <span className="hero-heatmap-g">{g.g}</span>
+            <span className="hero-heatmap-p">{g.p}</span>
           </div>
+        ))}
+      </div>
+      <div className="hero-heatmap-legend">
+        <span className="is-ok">Bajo</span>
+        <span className="is-warn">Medio</span>
+        <span className="is-crit">Alto / crítico</span>
+      </div>
+
+      <div className="hero-panel-label">Copiloto de rectoría</div>
+      <div className="hero-copilot">
+        <div className="hero-copilot-q">¿Qué grado necesita atención esta semana?</div>
+        <div className="hero-copilot-a">
+          <strong>7°C y 10°A.</strong> Física concentra el 34 % de la reprobación y 12 de 28 estudiantes están por debajo de 3.0.
         </div>
+      </div>
+
+      <div className="hero-panel-foot">
+        <span className="hero-panel-alert">{alerta}<i className="hero-caret" aria-hidden="true" /></span>
+        <span className="hero-panel-note">3 variables cruzadas cada noche · notas 40 % · ausencias 30 % · pendientes 30 %</span>
+      </div>
+    </div>
+  );
+}
+
+/* Cinta de señales del sistema: conserva el movimiento del hero, ya sin fotos. */
+function HeroSignalTicker() {
+  const track = [...heroSignals, ...heroSignals];
+  return (
+    <div className="hero-ticker" aria-hidden="true">
+      <div className="hero-ticker-track">
+        {track.map((s, i) => (
+          <span className="hero-ticker-item" key={i}>
+            <i className="hero-ticker-dot" />
+            {s}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -563,6 +721,30 @@ export default function LandingPage() {
   const [demoForm, setDemoForm] = useState(DEMO_FORM_VACIO);
   const [demoEnviando, setDemoEnviando] = useState(false);
   const [demoEstado, setDemoEstado] = useState(null);
+  const [heroEmail, setHeroEmail] = useState('');
+  const [heroAviso, setHeroAviso] = useState(null);
+  const heroRef = useRef(null);
+
+  /* Foco de luz que sigue el cursor dentro del hero (solo escritorio). */
+  function moverSpotlight(e) {
+    const el = heroRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${e.clientX - r.left}px`);
+    el.style.setProperty('--my', `${e.clientY - r.top}px`);
+  }
+
+  /* Captura del correo en el hero: precarga el formulario de demo y
+     lleva al visitante directo al paso final. */
+  function enviarHero(e) {
+    e.preventDefault();
+    const email = heroEmail.trim();
+    if (!email) return;
+    setDemoForm((f) => ({ ...f, email }));
+    setHeroAviso('Listo. Complete los últimos datos y le confirmamos la demo.');
+    const destino = document.getElementById('demo');
+    if (destino) destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   async function enviarDemo(e) {
     e.preventDefault();
@@ -621,33 +803,65 @@ export default function LandingPage() {
 
       <main id="top">
         {/* Hero */}
-        <section className="hero-section">
+        <section className="hero-section" ref={heroRef} onMouseMove={moverSpotlight}>
           <div className="hero-grid-bg" aria-hidden="true" />
           <div className="hero-glow" aria-hidden="true" />
-          <div className="hero-inner">
-            <div className="hero-copy is-visible reveal">
-              <div className="eyebrow hero-eyebrow">Sistema Inteligente de Gestión Académica</div>
-              <div className="hero-badge">
-                <span className="ping-dot"><span className="ping-dot-ring" /><span className="ping-dot-core" /></span>
-                En operación real, no en fase de prueba
-              </div>
-              <h1 className="hero-title">
-                El sistema de gestión académica que <span className="font-display">piensa</span><br className="br-desktop" /> por su institución.
-              </h1>
-              <p className="hero-subtitle">
-                Detecta el riesgo académico a tiempo, automatiza el trabajo del docente y mantiene informados a los padres — todo en un solo sistema.
-              </p>
-              <div className="hero-actions">
-                <a href="#demo" className="btn btn-navy btn-lg">Quiero ver Playfesor en mi colegio <span aria-hidden>→</span></a>
-                <Link to="/login" className="btn btn-outline btn-lg">Ingresar al sistema</Link>
-              </div>
-              <p className="hero-fineprint">Escala de valoración MEN · Boletines oficiales · WhatsApp a padres incluido</p>
-            </div>
+          <div className="hero-spotlight" aria-hidden="true" />
 
-            <Reveal delay={150} className="hero-mockup-wrap">
-              <HeroMockup />
-            </Reveal>
+          <div className="hero-inner">
+            <div className="hero-layout">
+              <div className="hero-copy">
+                <p className="hero-category">
+                  <span className="hero-category-dot" aria-hidden="true" />
+                  Playfesor · Sistema Inteligente de Gestión Académica
+                </p>
+
+                <h1 className="hero-title">
+                  ¿Y si pudieras <span className="font-display">detectar a tiempo</span> qué estudiantes necesitan ayuda?
+                </h1>
+
+                <p className="hero-lead">
+                  Playfesor analiza el desempeño académico y te ayuda a actuar antes de que sea demasiado tarde.
+                </p>
+
+                <form className="hero-capture" onSubmit={enviarHero}>
+                  <label className="hero-capture-label" htmlFor="hero-email">Correo institucional</label>
+                  <input
+                    id="hero-email"
+                    type="email"
+                    required
+                    className="hero-capture-input"
+                    placeholder="rector@micolegio.edu.co"
+                    value={heroEmail}
+                    onChange={(e) => setHeroEmail(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-navy btn-lg hero-capture-btn">
+                    Solicitar demo <span aria-hidden>→</span>
+                  </button>
+                </form>
+                <p className={`hero-capture-note ${heroAviso ? 'is-ok' : ''}`}>
+                  {heroAviso || 'Demo de 30 minutos con los datos reales de su institución · Sin compromiso'}
+                </p>
+
+                <div className="hero-actions">
+                  <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-lg hero-wa">
+                    <IconWhatsApp /> Escribir por WhatsApp
+                  </a>
+                  <Link to="/login" className="btn btn-ghost btn-lg">Ya soy usuario · Ingresar</Link>
+                </div>
+
+                <div className="hero-trust">
+                  <span>Escala de valoración MEN</span>
+                  <span>Boletines oficiales</span>
+                  <span>WhatsApp a padres incluido</span>
+                </div>
+              </div>
+
+              <HeroLivePanel />
+            </div>
           </div>
+
+          <HeroSignalTicker />
         </section>
 
         {/* Apuestas estratégicas */}
@@ -655,8 +869,8 @@ export default function LandingPage() {
           <div className="section-inner">
             <Reveal className="section-head">
               <div className="eyebrow">Hacia dónde vamos</div>
-              <h2 className="h2">Seis apuestas que van a redefinir la <span className="font-display">gestión académica</span> en Colombia.</h2>
-              <p className="section-lead">Mientras otros planean el futuro, Playfesor lo hace realidad hoy. Al centralizar su historia académica, construye un activo digital de máxima confiabilidad: entre más datos gestiona, más precisa es nuestra IA para detectar oportunidades de éxito y elevar la efectividad de su institución.</p>
+              <h2 className="h2">Seis ventajas que cambian el rendimiento de un colegio en Colombia.</h2>
+              <p className="section-lead">Playfesor ayuda a rectorías, docentes y familias a tomar decisiones antes de que el problema sea irreversible. Con IA predictiva, información centralizada y comunicación automática, el colegio gana tiempo, reduce riesgo y mejora resultados.</p>
             </Reveal>
 
             <div className="apuestas-grid">
@@ -702,9 +916,11 @@ export default function LandingPage() {
           <div className="section-inner">
             <Reveal className="section-head">
               <div className="eyebrow">Cómo funciona</div>
-              <h2 className="h2">Todo el colegio, <span className="font-display">conectado</span>.</h2>
-              <p className="section-lead">Rectoría, docentes, estudiantes y acudientes comparten una sola fuente de información académica — actualizada en tiempo real, sin planillas paralelas ni WhatsApp sueltos.</p>
+              <h2 className="h2">De la rectoría al hogar, todo conectado en tiempo real.</h2>
+              <p className="section-lead">Rectoría, docentes, estudiantes y acudientes comparten una misma fuente de información en tiempo real, sin planillas paralelas, sin WhatsApp suelto y sin duplicar datos.</p>
             </Reveal>
+
+            <HowItWorksFlow />
 
             <Reveal delay={100}>
               <EcosistemaDiagram />
@@ -726,8 +942,8 @@ export default function LandingPage() {
           <div className="section-inner">
             <Reveal className="section-head">
               <div className="eyebrow">Todo lo que un centro educativo necesita</div>
-              <h2 className="h2">Un sistema. Todos los procesos.</h2>
-              <p className="section-lead">El sistema inteligente de gestión académica diseñado específicamente para el sistema educativo colombiano — no un producto genérico traducido.</p>
+              <h2 className="h2">IA predictiva, boletines MEN y comunicación con familias, en una sola plataforma.</h2>
+              <p className="section-lead">Playfesor está diseñado para el sistema educativo colombiano: escala MEN, boletines oficiales, apoyo a docentes y alertas tempranas para cada estudiante.</p>
             </Reveal>
 
             <div className="feature-groups">
@@ -758,8 +974,8 @@ export default function LandingPage() {
           <div className="section-inner">
             <Reveal className="section-head">
               <div className="eyebrow eyebrow-light">Inteligencia artificial · ya en producción</div>
-              <h2 className="h2 h2-light">El primer sistema inteligente de gestión académica en Colombia con <span className="font-display font-display-light">IA que decide</span>, no que promete.</h2>
-              <p className="section-lead section-lead-light">Ningún otro sistema de gestión académica en Colombia tiene esto hoy. Playfesor sí — y funciona en centros educativos reales.</p>
+              <h2 className="h2 h2-light">La IA que realmente ayuda a una institución educativa a anticiparse, no solo a generar texto.</h2>
+              <p className="section-lead section-lead-light">Playfesor combina análisis predictivo, tutor IA, observador académico y copiloto de rectoría para colegios en Colombia que desean mejorar resultados sin aumentar la carga administrativa.</p>
             </Reveal>
 
             <div className="ai-grid">
@@ -779,7 +995,7 @@ export default function LandingPage() {
           <div className="section-inner">
             <Reveal className="section-head">
               <div className="eyebrow">Capacidades</div>
-              <h2 className="h2">Un sistema inteligente de gestión académica, completo desde el primer día.</h2>
+              <h2 className="h2">Todo lo que necesita un colegio, listo desde el primer día.</h2>
             </Reveal>
 
             <Reveal className="capability-card">
@@ -963,6 +1179,19 @@ export default function LandingPage() {
             <div className="footer-brand">
               <img src="/logo-icon.png" alt="Playfesor" className="lp-brand-icon" />
               <p>Sistema Inteligente de Gestión Académica para centros educativos en Colombia.</p>
+              <div className="footer-social">
+                {socialLinks.map((s) => (
+                  s.href ? (
+                    <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className="footer-social-icon" aria-label={s.label} title={s.label}>
+                      {s.icon}
+                    </a>
+                  ) : (
+                    <span key={s.label} className="footer-social-icon is-soon" aria-label={`${s.label} — próximamente`} title={`${s.label} — próximamente`}>
+                      {s.icon}
+                    </span>
+                  )
+                ))}
+              </div>
             </div>
             <div>
               <div className="footer-title">Producto</div>
@@ -1097,57 +1326,141 @@ const styles = `
     width: 900px; height: 520px; border-radius: 999px;
     background: rgba(41,129,251,0.22); filter: blur(120px); pointer-events: none;
   }
-  .hero-inner { position: relative; max-width: 1200px; margin: 0 auto; padding: 88px 24px 0; }
-  .hero-copy { max-width: 780px; margin: 0 auto; text-align: center; }
-  .hero-eyebrow { display: block; margin-bottom: 14px; }
-  .hero-badge {
-    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 24px;
-    border: 1px solid var(--border); background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
-    border-radius: 999px; padding: 7px 14px; font-size: 0.78rem; font-weight: 500; color: var(--muted-fg);
+  .hero-inner { position: relative; z-index: 2; max-width: 1200px; margin: 0 auto; padding: 84px 24px 0; }
+  .hero-spotlight {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+    background: radial-gradient(460px circle at var(--mx, 62%) var(--my, 34%), rgba(41,129,251,0.18), transparent 72%);
+    transition: opacity 0.4s ease;
   }
-  .ping-dot { position: relative; display: inline-flex; width: 8px; height: 8px; }
-  .ping-dot-ring { position: absolute; inset: 0; border-radius: 50%; background: var(--brand-blue); opacity: 0.5; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite; }
-  .ping-dot-core { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--brand-blue); }
-  @keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+  @media (hover: hover) and (pointer: fine) { .hero-spotlight { opacity: 1; } }
 
-  .hero-title { font-size: clamp(2.4rem, 5.6vw, 4.6rem); line-height: 1.03; color: var(--ink); }
+  .hero-layout { display: grid; grid-template-columns: 1.04fr 0.96fr; gap: 52px; align-items: center; }
+  .hero-copy { max-width: 600px; }
   .br-desktop { display: none; }
-  .hero-subtitle { margin: 26px auto 0; max-width: 620px; font-size: clamp(1rem, 1.4vw, 1.2rem); color: var(--muted-fg); line-height: 1.65; }
-  .hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 34px; }
-  .hero-fineprint { margin-top: 18px; font-size: 0.78rem; color: var(--muted-fg); }
 
-  .hero-mockup-wrap { position: relative; max-width: 1080px; margin: 60px auto 0; }
-  .mockup-frame { position: relative; border-radius: 26px; border: 1px solid var(--border); background: var(--card); padding: 10px; box-shadow: 0 40px 90px rgba(2,24,63,0.14); }
-  .mockup-window { border-radius: 18px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
-  .mockup-titlebar { display: flex; align-items: center; gap: 6px; padding: 12px 16px; background: rgba(238,242,247,0.7); border-bottom: 1px solid var(--border); }
-  .mockup-titlebar span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
-  .mockup-path { margin-left: 10px; flex: 1; font-size: 0.72rem; color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mockup-body { display: grid; grid-template-columns: 190px 1fr; gap: 16px; padding: 18px; }
-  .mockup-sidebar { display: flex; flex-direction: column; gap: 4px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); padding: 10px; }
-  .mockup-sidebar-item { padding: 8px 10px; border-radius: 8px; font-size: 0.75rem; color: var(--muted-fg); }
-  .mockup-sidebar-item.is-active { background: var(--brand-navy); color: #fff; }
-  .mockup-main { display: flex; flex-direction: column; gap: 14px; }
-  .mockup-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .mockup-metric-card { border-radius: 10px; border: 1px solid var(--border); background: var(--card); padding: 14px; }
-  .mockup-metric-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-fg); }
-  .mockup-metric-value { margin-top: 4px; font-size: 1.5rem; font-weight: 700; color: var(--ink); }
-  .mockup-metric-trend { margin-top: 4px; font-size: 0.7rem; color: var(--muted-fg); }
-  .mockup-split { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
-  .mockup-chart-card, .mockup-copilot-card { border-radius: 10px; border: 1px solid var(--border); padding: 16px; }
-  .mockup-chart-card { background: var(--card); }
-  .mockup-chart-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; font-weight: 600; color: var(--ink); }
-  .mockup-chart-time { font-size: 0.65rem; font-weight: 500; text-transform: uppercase; color: var(--muted-fg); }
-  .mockup-chart-bars { margin-top: 16px; display: flex; align-items: flex-end; gap: 5px; height: 130px; }
-  .mockup-bar { flex: 1; border-radius: 3px 3px 0 0; }
-  .mockup-bar.is-high { background: var(--brand-blue); }
-  .mockup-bar.is-mid { background: rgba(41,129,251,0.55); }
-  .mockup-bar.is-low { background: rgba(41,129,251,0.22); }
-  .mockup-chart-labels { margin-top: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--muted-fg); }
-  .mockup-copilot-card { background: linear-gradient(160deg, var(--brand-navy), #061a3d); color: #fff; display: flex; flex-direction: column; }
-  .mockup-copilot-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.6); }
-  .mockup-copilot-q { margin-top: 10px; border-radius: 8px; background: rgba(255,255,255,0.1); padding: 9px; font-size: 0.72rem; }
-  .mockup-copilot-a { margin-top: 8px; border-radius: 8px; background: rgba(255,255,255,0.05); padding: 9px; font-size: 0.72rem; line-height: 1.5; color: rgba(255,255,255,0.9); }
-  .mockup-copilot-foot { margin-top: auto; padding-top: 10px; font-size: 0.62rem; color: rgba(255,255,255,0.5); }
+  .hero-category {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 0.86rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.11em; color: var(--brand-blue);
+    animation: heroRise 0.7s ease both;
+  }
+  .hero-category-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--brand-blue);
+    box-shadow: 0 0 0 0 rgba(41,129,251,0.5); animation: heroPulse 2.6s ease-out infinite;
+  }
+  @keyframes heroPulse {
+    0% { box-shadow: 0 0 0 0 rgba(41,129,251,0.5); }
+    100% { box-shadow: 0 0 0 13px rgba(41,129,251,0); }
+  }
+
+  .hero-title { margin-top: 18px; font-size: clamp(2.15rem, 4.1vw, 3.45rem); line-height: 1.08; color: var(--ink); animation: heroRise 0.8s ease 0.06s both; }
+  .hero-lead { margin-top: 20px; max-width: 540px; font-size: 1.06rem; line-height: 1.62; color: var(--muted-fg); animation: heroRise 0.8s ease 0.12s both; }
+  @keyframes heroRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* CTA del hero: captura de correo institucional en una sola pieza */
+  .hero-capture {
+    margin-top: 30px; display: flex; align-items: center; gap: 8px; max-width: 560px;
+    padding: 8px 8px 8px 4px; border-radius: 999px; background: var(--card);
+    border: 1px solid var(--border); box-shadow: 0 18px 44px rgba(2,24,63,0.10);
+    animation: heroRise 0.8s ease 0.18s both;
+  }
+  .hero-capture:focus-within { border-color: rgba(41,129,251,0.55); box-shadow: 0 18px 44px rgba(41,129,251,0.16); }
+  .hero-capture-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .hero-capture-input {
+    flex: 1; min-width: 0; padding: 0 14px; border: none; outline: none; background: transparent;
+    font-family: inherit; font-size: 0.94rem; color: var(--foreground);
+  }
+  .hero-capture-input::placeholder { color: #909aa8; }
+  .hero-capture-btn { flex-shrink: 0; }
+  .hero-capture-note { margin-top: 12px; font-size: 0.78rem; color: var(--muted-fg); animation: heroRise 0.8s ease 0.24s both; }
+  .hero-capture-note.is-ok { color: #16a34a; font-weight: 600; }
+
+  .hero-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px; margin-top: 22px; animation: heroRise 0.8s ease 0.28s both; }
+  .btn-ghost { background: transparent; color: var(--foreground); border: 1px solid transparent; }
+  .btn-ghost:hover { background: var(--card); border-color: var(--border); color: var(--brand-blue); }
+  .hero-wa .contact-icon { width: 17px; height: 17px; color: #25d366; }
+
+  .hero-trust { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.78rem; color: var(--muted-fg); animation: heroRise 0.8s ease 0.34s both; }
+  .hero-trust span { display: inline-flex; align-items: center; gap: 7px; }
+  .hero-trust span::before { content: '✓'; color: var(--brand-blue); font-weight: 700; font-size: 0.72rem; }
+
+  /* Panel del hero: el producto dibujado con HTML/CSS, sin fotos */
+  .hero-panel {
+    position: relative; padding: 22px; border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, #ffffff 0%, #f6f9fd 100%);
+    box-shadow: 0 30px 70px rgba(2,24,63,0.13);
+    animation: heroRise 0.9s ease 0.16s both;
+  }
+  .hero-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 13px; border-bottom: 1px solid var(--border); }
+  .hero-panel-folio { font-family: monospace; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-fg); }
+  .hero-panel-badge { display: inline-flex; align-items: center; gap: 7px; font-family: monospace; font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand-blue); white-space: nowrap; }
+  .hero-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-blue); animation: heroPulse 2.6s ease-out infinite; }
+
+  .hero-panel-label { margin: 18px 0 10px; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink); }
+
+  .hero-heatmap { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; overflow: hidden; }
+  .hero-heatmap-cell {
+    border-radius: 9px; padding: 9px 4px; text-align: center;
+    border: 1px solid var(--border); background: var(--card);
+    opacity: 0; animation: heroCell 0.5s ease forwards;
+  }
+  @keyframes heroCell { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+  .hero-heatmap-g { display: block; font-size: 0.62rem; font-weight: 600; color: var(--muted-fg); }
+  .hero-heatmap-p { display: block; margin-top: 4px; font-size: 0.88rem; font-weight: 700; color: var(--ink); }
+  .hero-heatmap-cell.is-ok { background: rgba(34,197,94,0.08); box-shadow: inset 0 0 0 1px rgba(34,197,94,0.32); }
+  .hero-heatmap-cell.is-ok .hero-heatmap-p { color: #16a34a; }
+  .hero-heatmap-cell.is-warn { background: rgba(217,119,6,0.09); box-shadow: inset 0 0 0 1px rgba(217,119,6,0.34); }
+  .hero-heatmap-cell.is-warn .hero-heatmap-p { color: #d97706; }
+  .hero-heatmap-cell.is-crit { background: rgba(220,38,38,0.10); box-shadow: inset 0 0 0 1px rgba(220,38,38,0.36); }
+  .hero-heatmap-cell.is-crit .hero-heatmap-p { color: #dc2626; }
+  .hero-heatmap::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 90px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(41,129,251,0.16), transparent);
+    animation: heroScan 6s ease-in-out infinite;
+  }
+  @keyframes heroScan { 0% { left: -22%; } 100% { left: 108%; } }
+
+  .hero-heatmap-legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.62rem; }
+  .hero-heatmap-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .hero-heatmap-legend span::before { content: ''; width: 8px; height: 8px; border-radius: 3px; background: currentColor; }
+  .hero-heatmap-legend .is-ok { color: #16a34a; }
+  .hero-heatmap-legend .is-warn { color: #d97706; }
+  .hero-heatmap-legend .is-crit { color: #dc2626; }
+
+  .hero-copilot { display: flex; flex-direction: column; gap: 8px; }
+  .hero-copilot-q {
+    align-self: flex-end; max-width: 84%; padding: 9px 13px; font-size: 0.76rem; line-height: 1.45;
+    border-radius: 14px 14px 3px 14px; background: var(--brand-navy); color: #fff;
+  }
+  .hero-copilot-a {
+    max-width: 94%; padding: 10px 13px; font-size: 0.76rem; line-height: 1.5; color: var(--muted-fg);
+    border-radius: 14px 14px 14px 3px; border: 1px solid var(--border); background: var(--card);
+  }
+  .hero-copilot-a strong { color: var(--ink); }
+
+  .hero-panel-foot { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 8px; }
+  .hero-panel-alert { display: inline-flex; align-items: center; min-height: 17px; font-family: monospace; font-size: 0.68rem; color: var(--brand-blue); }
+  .hero-caret { display: inline-block; width: 7px; height: 13px; margin-left: 4px; background: var(--brand-blue); animation: heroCaret 1s steps(2, start) infinite; }
+  @keyframes heroCaret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  .hero-panel-note { font-size: 0.64rem; line-height: 1.5; color: #8d97a5; }
+
+  /* Cinta de señales del sistema, debajo del hero (reemplaza la franja de fotos) */
+  .hero-ticker {
+    position: relative; z-index: 2; margin-top: 64px; width: 100vw; left: 50%;
+    margin-left: -50vw; padding: 14px 0; overflow: hidden;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.6);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%);
+  }
+  .hero-ticker-track { display: flex; width: max-content; animation: heroTicker 52s linear infinite; }
+  .hero-ticker:hover .hero-ticker-track { animation-play-state: paused; }
+  .hero-ticker-item {
+    display: inline-flex; align-items: center; gap: 9px; padding: 0 26px; white-space: nowrap;
+    font-family: monospace; font-size: 0.7rem; letter-spacing: 0.02em; color: var(--muted-fg);
+  }
+  .hero-ticker-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--brand-blue); flex-shrink: 0; }
+  @keyframes heroTicker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
   /* Apuestas estratégicas */
   .apuestas-grid { margin-top: 40px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
@@ -1213,7 +1526,8 @@ const styles = `
     aspect-ratio: 1 / 1;
   }
   .eco-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .eco-lines line { stroke: rgba(41,129,251,0.3); stroke-width: 1; }
+  .eco-lines line { stroke: rgba(41,129,251,0.4); stroke-width: 1.4; stroke-dasharray: 3 4; animation: ecoFlow 1.8s linear infinite; }
+  @keyframes ecoFlow { to { stroke-dashoffset: -14; } }
   .eco-hub {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
     z-index: 1; width: 96px; height: 96px;
@@ -1221,6 +1535,11 @@ const styles = `
     background: var(--card); border: 1px solid var(--border); border-radius: 50%;
     box-shadow: 0 14px 28px rgba(2,24,63,0.12);
     text-align: center; padding: 8px;
+    animation: ecoPulse 3s ease-in-out infinite;
+  }
+  @keyframes ecoPulse {
+    0%, 100% { box-shadow: 0 14px 28px rgba(2,24,63,0.12), 0 0 0 0 rgba(41,129,251,0.28); }
+    50% { box-shadow: 0 14px 28px rgba(2,24,63,0.12), 0 0 0 10px rgba(41,129,251,0); }
   }
   .eco-hub-icon { width: 22px; height: 22px; object-fit: contain; }
   .eco-hub span { font-size: 0.66rem; font-weight: 700; color: var(--ink); line-height: 1.15; }
@@ -1240,8 +1559,47 @@ const styles = `
   .eco-node-icon { width: 15px; height: 15px; }
   .eco-node-label { font-size: 0.78rem; font-weight: 700; color: var(--ink); }
   .eco-node-desc { font-size: 0.66rem; color: var(--muted-fg); line-height: 1.25; }
-  .eco-benefits { margin-top: 36px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 28px; }
-  .eco-benefit { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: var(--foreground); }
+  .eco-benefits { margin-top: 40px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .eco-benefit {
+    display: flex; align-items: center; gap: 10px; font-size: 0.84rem; color: var(--foreground);
+    background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 10px 16px;
+    box-shadow: 0 6px 16px rgba(2,24,63,0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .eco-benefit:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(2,24,63,0.08); }
+
+  /* Cómo funciona: flujo paso a paso */
+  .flow-strip { position: relative; margin: 48px auto 0; max-width: 980px; display: grid; grid-template-columns: repeat(4, 1fr); }
+  .flow-strip::before {
+    content: ''; position: absolute; top: 27px; left: 12.5%; right: 12.5%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border) 10%, var(--border) 90%, transparent);
+    z-index: 0;
+  }
+  .flow-pulse {
+    position: absolute; top: 23px; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--brand-blue); box-shadow: 0 0 0 5px rgba(41,129,251,0.18), 0 0 16px rgba(41,129,251,0.55);
+    z-index: 1; animation: flowPulse 7s ease-in-out infinite;
+  }
+  @keyframes flowPulse {
+    0% { left: 12.5%; opacity: 0; }
+    6% { opacity: 1; }
+    44% { left: 87.5%; opacity: 1; }
+    52% { opacity: 0; }
+    100% { left: 87.5%; opacity: 0; }
+  }
+  .flow-step { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 16px; }
+  .flow-step-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%;
+    background: var(--card); border: 1px solid var(--border); color: var(--brand-blue);
+    box-shadow: 0 10px 24px rgba(2,24,63,0.08);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .flow-step-icon svg { width: 22px; height: 22px; }
+  .flow-step:hover .flow-step-icon { transform: translateY(-3px) scale(1.06); box-shadow: 0 16px 30px rgba(41,129,251,0.22); }
+  .flow-step-n { margin-top: 12px; font-family: monospace; font-size: 0.66rem; font-weight: 700; color: var(--muted-fg); letter-spacing: 0.08em; text-transform: uppercase; }
+  .flow-step-title { margin-top: 8px; font-size: 1rem; font-weight: 700; color: var(--ink); }
+  .flow-step-desc { margin-top: 6px; font-size: 0.82rem; color: var(--muted-fg); line-height: 1.5; max-width: 220px; }
+  .flow-step-arrow { position: absolute; top: 18px; right: -4px; color: var(--brand-blue); font-size: 1.1rem; opacity: 0.55; }
 
   /* AI section */
   .ai-section { position: relative; overflow: hidden; background: var(--brand-navy); color: #fff; }
@@ -1347,6 +1705,15 @@ const styles = `
   .lp-footer { border-top: 1px solid var(--border); background: var(--secondary); }
   .footer-grid { padding: 56px 0 0; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 40px; }
   .footer-brand p { margin-top: 14px; max-width: 260px; font-size: 0.88rem; color: var(--muted-fg); }
+  .footer-social { margin-top: 18px; display: flex; gap: 10px; }
+  .footer-social-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px;
+    border-radius: 50%; border: 1px solid var(--border); color: var(--muted-fg);
+    transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  }
+  .footer-social-icon .social-icon { width: 17px; height: 17px; }
+  a.footer-social-icon:hover { color: var(--brand-blue); border-color: var(--brand-blue); transform: translateY(-2px); }
+  .footer-social-icon.is-soon { opacity: 0.4; cursor: default; }
   .footer-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--foreground); }
   .footer-grid ul { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem; }
   .footer-grid a { color: var(--muted-fg); text-decoration: none; }
@@ -1388,8 +1755,6 @@ const styles = `
   @media (max-width: 1024px) {
     .feature-group { grid-template-columns: 1fr; }
     .faq-layout { grid-template-columns: 1fr; }
-    .mockup-sidebar { display: none; }
-    .mockup-body { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 900px) {
@@ -1403,11 +1768,16 @@ const styles = `
     .ai-card { grid-column: span 1 !important; }
     .stats-grid { grid-template-columns: 1fr 1fr; }
     .footer-grid { grid-template-columns: 1fr 1fr; }
-    .mockup-split { grid-template-columns: 1fr; }
     .capability-grid { grid-template-columns: 1fr; }
     .contact-grid { grid-template-columns: 1fr 1fr; }
     .cta-layout { grid-template-columns: 1fr; }
     .cta-content { max-width: none; }
+    .flow-strip { grid-template-columns: 1fr 1fr; row-gap: 36px; }
+    .flow-strip::before, .flow-pulse { display: none; }
+    .flow-step-arrow { display: none; }
+    .hero-layout { grid-template-columns: 1fr; gap: 42px; }
+    .hero-copy { max-width: none; }
+    .hero-lead { max-width: 640px; }
   }
 
   @media (max-width: 640px) {
@@ -1426,5 +1796,26 @@ const styles = `
     .eco-hub { border-radius: 16px; flex-direction: row; justify-content: center; padding: 14px; order: -1; }
     .eco-node { border-radius: 16px; flex-direction: row; text-align: left; justify-content: flex-start; gap: 12px; }
     .eco-node-desc { max-width: none; }
+    .flow-strip { grid-template-columns: 1fr; row-gap: 28px; max-width: 320px; }
+    .hero-capture { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; border-radius: 20px; }
+    .hero-capture-input { padding: 6px 4px; text-align: center; }
+    .hero-capture-btn { width: 100%; }
+    .hero-panel { padding: 18px; }
+    .hero-heatmap { grid-template-columns: repeat(4, 1fr); }
+    .hero-ticker { margin-top: 46px; }
+    .hero-ticker-track { animation-duration: 38s; }
+    .hero-ticker-item { padding: 0 18px; font-size: 0.66rem; }
+  }
+
+  /* Accesibilidad: si el visitante pidió menos movimiento, el hero se queda quieto */
+  @media (prefers-reduced-motion: reduce) {
+    .hero-category, .hero-title, .hero-lead, .hero-capture, .hero-capture-note,
+    .hero-actions, .hero-trust, .hero-panel {
+      animation: none !important; opacity: 1 !important; transform: none !important;
+    }
+    .hero-category-dot, .hero-live-dot, .hero-caret, .hero-heatmap::after, .hero-heatmap-cell { animation: none !important; }
+    .hero-heatmap-cell { opacity: 1 !important; transform: none !important; }
+    .hero-ticker-track { animation: none !important; }
+    .hero-spotlight { display: none; }
   }
 `;

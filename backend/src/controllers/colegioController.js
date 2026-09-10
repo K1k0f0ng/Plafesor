@@ -37,14 +37,14 @@ async function listar(req, res) {
 
 // PUT /api/colegios/:id — actualiza solo si es el colegio del admin
 async function actualizar(req, res) {
-  const { nombre, ciudad } = req.body;
+  const { nombre, ciudad, lema } = req.body;
   if (parseInt(req.params.id) !== req.usuario.colegio_id) {
     return res.status(403).json({ error: 'No puedes editar otro colegio' });
   }
   try {
     await db.query(
-      'UPDATE colegios SET nombre = COALESCE(?, nombre), ciudad = COALESCE(?, ciudad) WHERE id = ?',
-      [nombre || null, ciudad || null, req.usuario.colegio_id]
+      'UPDATE colegios SET nombre = COALESCE(?, nombre), ciudad = COALESCE(?, ciudad), lema = ? WHERE id = ?',
+      [nombre || null, ciudad || null, lema || null, req.usuario.colegio_id]
     );
     res.json({ mensaje: 'Institución actualizada' });
   } catch (err) {

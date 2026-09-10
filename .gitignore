@@ -45,3 +45,7 @@ Thumbs.db
 
 # Configuración local de Claude Code — específica de esta máquina, no es código del proyecto
 .claude/
+
+# Caché de sesión de la skill Impeccable — se regenera solo, no aporta si se versiona
+.impeccable/hook.cache.json
+.impeccable/questions/

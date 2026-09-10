@@ -73,14 +73,14 @@ function PantallaCarga() {
 }
 
 // Todas las rutas privadas incluyen automáticamente el Layout con sidebar
-function RutaPrivada({ children, rolesPermitidos }) {
+function RutaPrivada({ children, rolesPermitidos, variante }) {
   const { usuario, cargando } = useAuth();
   if (cargando) return <PantallaCarga />;
   if (!usuario) return <Navigate to="/login" replace />;
   if (rolesPermitidos && !rolesPermitidos.includes(usuario.rol)) {
     return <Navigate to={RUTAS_POR_ROL[usuario.rol] || '/login'} replace />;
   }
-  return <Layout>{children}</Layout>;
+  return <Layout variante={variante}>{children}</Layout>;
 }
 
 function RutaPublica({ children }) {
@@ -109,7 +109,7 @@ function AppRoutes() {
       <Route path="/periodos"    element={<RutaPrivada rolesPermitidos={['admin']}><Periodos /></RutaPrivada>} />
 
       {/* Rutas Director */}
-      <Route path="/dashboard-director" element={<RutaPrivada rolesPermitidos={['director']}><DirectorDashboard /></RutaPrivada>} />
+      <Route path="/dashboard-director" element={<RutaPrivada rolesPermitidos={['director']} variante="director"><DirectorDashboard /></RutaPrivada>} />
       <Route path="/evaluacion-docentes" element={<RutaPrivada rolesPermitidos={['director', 'admin']}><EvaluacionDocentes /></RutaPrivada>} />
       <Route path="/comparativas"        element={<RutaPrivada rolesPermitidos={['director', 'admin']}><Comparativas /></RutaPrivada>} />
       <Route path="/metricas"            element={<RutaPrivada rolesPermitidos={['director', 'admin']}><MetricasInstitucional /></RutaPrivada>} />

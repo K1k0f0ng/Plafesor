@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
+import LayoutDirector from '../components/LayoutDirector';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { formatearApellidoPrimero } from '../utils/ordenNombre';
@@ -8,8 +8,16 @@ import {
   IconBarChart, IconAlertCircle, IconZap, IconFileText, IconTrendUp,
   IconClipboard, IconSchool, IconBookOpen, IconUser, IconEdit,
   IconAlertTriangle, IconInbox, SemaforoDot, IconAccessibility,
-  IconBot, IconRefresh,
+  IconBot, IconRefresh, IconStar, IconCalendar,
 } from '../components/Icons';
+
+const ROL_ETIQUETA = {
+  admin:      'Administrador',
+  director:   'Director del Colegio',
+  docente:    'Docente',
+  estudiante: 'Estudiante',
+  padre:      'Acudiente',
+};
 
 const NIVEL_COLOR = { bajo: '#ffcdd2', basico: '#fff9c4', alto: '#c8e6c9', superior: '#bbdefb' };
 const NIVEL_TEXTO = { bajo: '#c62828', basico: '#f57f17', alto: '#2e7d32', superior: '#1565c0' };
@@ -26,6 +34,94 @@ function pct(parte, total) {
   return `${Math.round((parte / total) * 100)}%`;
 }
 
+/* Nivel MEN a partir del promedio (misma escala que el resumen del colegio) */
+function nivelMen(promedio) {
+  if (promedio === null || promedio === undefined || promedio === '') return 'Sin datos';
+  const p = parseFloat(promedio);
+  if (Number.isNaN(p)) return 'Sin datos';
+  if (p < 3.5) return 'Bajo';
+  if (p < 4.0) return 'Básico';
+  if (p <= 4.5) return 'Alto';
+  return 'Superior';
+}
+
+function fechaLargaHoy() {
+  const texto = new Date().toLocaleDateString('es-CO', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/* Texto y color de un comparativo real contra el mes anterior. Si no hay
+   histórico todavía (colegio nuevo o primer mes usando la función), no se
+   inventa nada: el llamador cae de vuelta a la nota descriptiva de siempre. */
+function notaComparativo(delta, { positivoEsBueno = true } = {}) {
+  if (delta === null || delta === undefined) return null;
+  if (delta === 0) return { texto: 'Sin cambios vs. mes anterior', color: '#6b7280' };
+  const esBueno = positivoEsBueno ? delta > 0 : delta < 0;
+  const flecha = delta > 0 ? '↑' : '↓';
+  return {
+    texto: `${flecha} ${Math.abs(delta)} vs. mes anterior`,
+    color: esBueno ? '#16a34a' : '#dc2626',
+  };
+}
+
+function horaCorta(fecha) {
+  if (!fecha) return '—';
+  return fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* Acceso rápido en tarjeta de color, con conteo cuando aplica */
+function TarjetaAccion({ accion, onClick }) {
+  const { Icono } = accion;
+  return (
+    <button onClick={onClick} style={{ ...es.btnAccion, background: accion.bg }}>
+      <span style={es.btnAccionIcono}>
+        <Icono size={17} style={{ color: '#fff' }} />
+      </span>
+      <span style={es.btnAccionTexto}>
+        <span style={es.btnAccionLabel}>{accion.label} →</span>
+        <span style={es.btnAccionDesc}>{accion.desc}</span>
+      </span>
+      {accion.badge > 0 && (
+        <span style={es.btnAccionBadge}>{accion.badge > 9 ? '9+' : accion.badge}</span>
+      )}
+    </button>
+  );
+}
+
+/* Curva de apoyo de cada tarjeta: la serie real por grupo, no un adorno */
+function Sparkline({ serie, color }) {
+  const datos = (serie && serie.length > 1) ? serie.map(v => Number(v) || 0) : [0, 0];
+  const max = Math.max(...datos);
+  const min = Math.min(...datos);
+  const rango = (max - min) || 1;
+  const paso = 100 / (datos.length - 1);
+  const linea = datos
+    .map((v, i) => `${(i * paso).toFixed(2)},${(28 - ((v - min) / rango) * 24).toFixed(2)}`)
+    .join(' ');
+
+  return (
+    <svg
+      viewBox="0 0 100 32"
+      preserveAspectRatio="none"
+      style={{ width: '72px', height: '34px', flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      <polygon points={`0,32 ${linea} 100,32`} fill={color} opacity="0.12" />
+      <polyline
+        points={linea}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
 export default function DirectorDashboard() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
@@ -38,6 +134,7 @@ export default function DirectorDashboard() {
   const [briefing, setBriefing] = useState(null);
   const [cargandoBriefing, setCargandoBriefing] = useState(true);
   const [actualizandoBriefing, setActualizandoBriefing] = useState(false);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -52,6 +149,7 @@ export default function DirectorDashboard() {
       ]);
       setDatos(respResumen.data.data);
       setAlertas(respAlertas.data.data);
+      setUltimaActualizacion(new Date());
     } catch {
       setError('No se pudo cargar el resumen. Verifica tu conexión.');
     } finally {
@@ -88,94 +186,158 @@ export default function DirectorDashboard() {
     return (conPromedio.reduce((s, g) => s + parseFloat(g.promedio), 0) / conPromedio.length).toFixed(1);
   })();
 
+  const gradosUnicos = new Set(grupos.map(g => g.grado)).size;
+  const promedioPorGrupo = grupos.length ? Math.round(totalEstudiantes / grupos.length) : 0;
+  const actividadesPorGrupo = grupos.length ? Math.round(totalActividades / grupos.length) : 0;
+
+  // Comparativo real contra el mes anterior (null hasta el segundo mes de uso)
+  const cmp = datos?.comparativoMesAnterior;
+  const cmpGrupos      = cmp ? notaComparativo(cmp.grupos) : null;
+  const cmpEstudiantes = cmp ? notaComparativo(cmp.estudiantes) : null;
+  const cmpActividades = cmp ? notaComparativo(cmp.actividades) : null;
+  const cmpPromedio    = cmp ? notaComparativo(cmp.promedio) : null;
+
+  /* Cada tarjeta lleva como curva la serie real de sus grupos, no un adorno */
+  const stats = [
+    {
+      label: 'Grupos activos', valor: grupos.length, Icono: IconBookOpen, color: '#3b82f6',
+      nota: cmpGrupos?.texto || `${gradosUnicos} ${gradosUnicos === 1 ? 'grado' : 'grados'} en total`,
+      notaColor: cmpGrupos?.color || '#16a34a',
+      serie: grupos.map(g => g.total_estudiantes),
+    },
+    {
+      label: 'Estudiantes totales', valor: totalEstudiantes, Icono: IconUser, color: '#8b5cf6',
+      nota: cmpEstudiantes?.texto || `Promedio de ${promedioPorGrupo} por grupo`,
+      notaColor: cmpEstudiantes?.color || '#16a34a',
+      serie: grupos.map(g => g.total_estudiantes),
+    },
+    {
+      label: 'Actividades', valor: totalActividades, Icono: IconEdit, color: '#ec4899',
+      nota: cmpActividades?.texto || `${actividadesPorGrupo} por grupo en promedio`,
+      notaColor: cmpActividades?.color || '#16a34a',
+      serie: grupos.map(g => g.total_actividades),
+    },
+    {
+      label: 'Promedio colegio', valor: promedioGlobal ?? '—', Icono: IconStar, color: '#f59e0b',
+      nota: cmpPromedio?.texto || `Escala MEN: ${nivelMen(promedioGlobal)}`,
+      notaColor: cmpPromedio?.color || '#16a34a',
+      serie: grupos.map(g => g.promedio),
+    },
+  ];
+
   const acciones = [
-    { label: 'Centro de Métricas',      Icono: IconBarChart,    ruta: '/metricas',      bg: 'linear-gradient(135deg, #667eea, #764ba2)' },
-    { label: 'Motor de Riesgo',         Icono: IconAlertCircle, ruta: '/riesgo',        bg: 'linear-gradient(135deg, #ef5350, #c62828)' },
-    { label: 'Copiloto de Rectoría',    Icono: IconZap,         ruta: '/copiloto',      bg: 'linear-gradient(135deg, #1a237e, #283593)' },
-    { label: 'Observador Académico',    Icono: IconFileText,    ruta: '/observador',    bg: 'linear-gradient(135deg, #2e7d32, #1b5e20)' },
-    { label: 'Comparativas P1·P2·P3',  Icono: IconTrendUp,     ruta: '/comparativas',  bg: 'linear-gradient(135deg, #f093fb, #f5576c)' },
-    { label: 'Planes de Mejoramiento',  Icono: IconClipboard,   ruta: '/planes',        bg: 'linear-gradient(135deg, #f7971e, #ffd200)' },
-    { label: 'PIAR (Ajustes Razonables)', Icono: IconAccessibility, ruta: '/piar',      bg: 'linear-gradient(135deg, #26a69a, #00695c)' },
-    { label: 'Gemelo Digital',          Icono: IconSchool,      ruta: '/gemelo',        bg: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)' },
+    { label: 'Centro de Métricas',        desc: 'Vista general del rendimiento', Icono: IconBarChart,      ruta: '/metricas',     bg: 'linear-gradient(135deg, #8b7cf6, #6d28d9)' },
+    { label: 'Motor de Riesgo',           desc: 'Estudiantes en alerta',         Icono: IconAlertCircle,   ruta: '/riesgo',       bg: 'linear-gradient(135deg, #f0645c, #c62828)', badge: estudiantesEnRiesgo },
+    { label: 'Copiloto de Rectoría',      desc: 'Decisiones con IA',             Icono: IconZap,           ruta: '/copiloto',     bg: 'linear-gradient(135deg, #2f6df6, #1e40af)' },
+    { label: 'Observador Académico',      desc: 'Genera y gestiona informes',    Icono: IconFileText,      ruta: '/observador',   bg: 'linear-gradient(135deg, #2f9e44, #1b5e20)' },
+    { label: 'Comparativas P1·P2·P3',     desc: 'Rendimiento por período',       Icono: IconTrendUp,       ruta: '/comparativas', bg: 'linear-gradient(135deg, #f472b6, #db2777)' },
+    { label: 'Planes de Mejoramiento',    desc: 'Seguimiento y progreso',        Icono: IconClipboard,     ruta: '/planes',       bg: 'linear-gradient(135deg, #f59f0b, #d97706)', ancho: true },
+    { label: 'PIAR (Ajustes Razonables)', desc: 'Inclusión educativa',           Icono: IconAccessibility, ruta: '/piar',         bg: 'linear-gradient(135deg, #14b8a6, #0f766e)', ancho: true },
+    { label: 'Gemelo Digital',            desc: 'Simula y proyecta',             Icono: IconSchool,        ruta: '/gemelo',       bg: 'linear-gradient(135deg, #1e293b, #0f172a)', ancho: true },
   ];
 
   return (
-    <div style={es.pagina}>
-      <Navbar titulo="Panel Director" />
-      <div style={es.contenido}>
+    <LayoutDirector colegio={datos?.colegio}>
 
-        {/* Encabezado */}
-        <div style={es.encabezado}>
+      {/* Encabezado */}
+      <div style={es.encabezado}>
+        <div>
+          <h1 style={es.saludoNombre}>{usuario.nombre}</h1>
+          <p style={es.saludoRol}>Bienvenido, {ROL_ETIQUETA[usuario.rol] || usuario.rol}</p>
+        </div>
+        <div style={es.fechaBloque}>
+          <IconCalendar size={18} style={{ color: '#7b8598', flexShrink: 0 }} />
           <div>
-            <h2 style={es.colegio}>{datos?.colegio || 'Mi Colegio'}</h2>
-            <p style={es.bienvenida}>Bienvenido, {usuario.nombre}</p>
+            <span style={es.fecha}>{fechaLargaHoy()}</span>
+            <span style={es.actualizado}>
+              Última actualización: {cargando ? 'cargando…' : horaCorta(ultimaActualizacion)}
+            </span>
           </div>
         </div>
+      </div>
 
-        {/* Resumen ejecutivo diario ("dashboard que habla") */}
-        <div style={es.briefingCard}>
-          <div style={es.briefingIcono}>
-            <IconBot size={20} style={{ color: '#fff' }} />
-          </div>
-          <div style={es.briefingTexto}>
+      {/* Aviso del motor de riesgo + resumen ejecutivo del día */}
+      <div style={es.banner}>
+        <div style={es.bannerOnda} aria-hidden="true">
+          <svg viewBox="0 0 240 90" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+            <polyline points="0,68 30,46 60,58 90,26 120,44 150,16 180,34 210,10 240,26" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+            <polyline points="0,80 30,64 60,74 90,48 120,60 150,38 180,52 210,30 240,44" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          </svg>
+        </div>
+
+        <span style={es.bannerIcono}>
+          <IconBot size={20} style={{ color: '#fff' }} />
+        </span>
+
+        <div style={es.bannerTexto}>
+          <strong style={es.bannerTitulo}>
+            {estudiantesEnRiesgo > 0
+              ? `Playfesor ha identificado ${estudiantesEnRiesgo} ${estudiantesEnRiesgo === 1 ? 'estudiante' : 'estudiantes'} con posible riesgo académico`
+              : 'El motor de riesgo no reporta estudiantes en alerta'}
+          </strong>
+          <span style={es.bannerSub}>
             {cargandoBriefing
-              ? 'Preparando tu resumen del día...'
-              : briefing?.texto || 'No hay suficiente información todavía para generar tu resumen del día.'}
-          </div>
-          <button
-            onClick={() => cargarBriefing(true)}
-            disabled={actualizandoBriefing || cargandoBriefing}
-            style={{ ...es.briefingBtn, opacity: (actualizandoBriefing || cargandoBriefing) ? 0.5 : 1 }}
-            title="Actualizar resumen"
-          >
-            <IconRefresh size={14} style={{ color: '#fff' }} />
-          </button>
+              ? 'Preparando el resumen del día…'
+              : (briefing?.texto || 'Revise al detalle en el Motor de Riesgo o consulte el informe completo.')}
+          </span>
         </div>
 
-        {/* Accesos rápidos */}
-        <div style={es.accionesGrid}>
-          {acciones.map(a => {
-            const { Icono } = a;
-            return (
-              <button key={a.ruta} onClick={() => navigate(a.ruta)} style={{ ...es.btnAccion, background: a.bg }}>
-                <Icono size={18} style={{ color: '#fff', opacity: 0.9, flexShrink: 0 }} />
-                <span>{a.label} →</span>
-              </button>
-            );
-          })}
-        </div>
+        <button onClick={() => navigate('/riesgo')} style={es.bannerBtn}>Ver estudiantes →</button>
+
+        <button
+          onClick={() => cargarBriefing(true)}
+          disabled={actualizandoBriefing || cargandoBriefing}
+          style={{ ...es.bannerRefresh, opacity: (actualizandoBriefing || cargandoBriefing) ? 0.5 : 1 }}
+          title="Actualizar resumen"
+        >
+          <IconRefresh size={14} style={{ color: '#fff' }} />
+        </button>
+      </div>
+
+      {/* Accesos rápidos */}
+      <div style={es.accionesGrid}>
+        {acciones.filter(a => !a.ancho).map(a => (
+          <TarjetaAccion key={a.ruta} accion={a} onClick={() => navigate(a.ruta)} />
+        ))}
+      </div>
+      <div style={es.accionesGridAncho}>
+        {acciones.filter(a => a.ancho).map(a => (
+          <TarjetaAccion key={a.ruta} accion={a} onClick={() => navigate(a.ruta)} />
+        ))}
+      </div>
 
         {/* Filtro por período */}
-        <div style={es.filtroRow}>
-          {['', '1', '2', '3'].map(p => (
-            <button
-              key={p}
-              onClick={() => setPeriodo(p)}
-              style={{ ...es.filtroBton, ...(periodo === p ? es.filtroBtonActivo : {}) }}
-            >
-              {p === '' ? 'Todos los períodos' : `Período ${p}`}
-            </button>
-          ))}
-        </div>
+      <div style={es.filtroRow}>
+        {['', '1', '2', '3'].map(p => (
+          <button
+            key={p}
+            onClick={() => setPeriodo(p)}
+            style={{ ...es.filtroBton, ...(periodo === p ? es.filtroBtonActivo : {}) }}
+          >
+            {p === '' ? 'Todos los períodos' : `Período ${p}`}
+          </button>
+        ))}
+      </div>
 
-        {/* Resumen global */}
-        <div style={es.statsGrid}>
-          {[
-            { label: 'Grupos activos',      valor: grupos.length,        Icono: IconBookOpen, color: '#667eea' },
-            { label: 'Estudiantes totales', valor: totalEstudiantes,     Icono: IconUser,     color: '#764ba2' },
-            { label: 'Actividades',         valor: totalActividades,     Icono: IconEdit,     color: '#f093fb' },
-            { label: 'Promedio colegio',    valor: promedioGlobal ?? '—', dot: semaforo(promedioGlobal).dot },
-          ].map(s => (
+      {/* Resumen global */}
+      <div style={es.statsGrid}>
+        {stats.map(s => {
+          const { Icono } = s;
+          return (
             <div key={s.label} style={es.statCard}>
-              {s.Icono
-                ? <s.Icono size={26} style={{ color: s.color }} />
-                : <SemaforoDot color={s.dot} size={18} />
-              }
-              <span style={{ ...es.statValor, color: s.Icono ? s.color : semaforo(promedioGlobal).color }}>{cargando ? '...' : s.valor}</span>
-              <span style={es.statLabel}>{s.label}</span>
+              <span style={{ ...es.statIconoWrap, background: `${s.color}1a`, color: s.color }}>
+                <Icono size={20} />
+              </span>
+              <div style={es.statContenido}>
+                <span style={{ ...es.statValor, color: s.color }}>{cargando ? '···' : s.valor}</span>
+                <span style={es.statLabel}>{s.label}</span>
+                <span style={{ ...es.statNota, color: s.notaColor }}>{cargando ? '' : s.nota}</span>
+              </div>
+              <Sparkline serie={s.serie} color={s.color} />
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
         {/* Error */}
         {error && <div style={es.error}>{error}</div>}
@@ -188,7 +350,14 @@ export default function DirectorDashboard() {
               <p>No hay grupos registrados en este colegio aún.</p>
             </div>
           ) : (
-            <div style={es.tablaWrap}>
+            <div style={es.tablaCard}>
+              <div style={es.tablaCardHead}>
+                <h3 style={es.tablaTitulo}>Rendimiento por grupo</h3>
+                <button onClick={() => navigate('/metricas')} style={es.tablaLink}>
+                  Ver todos los grupos →
+                </button>
+              </div>
+              <div style={es.tablaScroll}>
               <table style={es.tabla}>
                 <thead>
                   <tr>
@@ -257,6 +426,7 @@ export default function DirectorDashboard() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )
         )}
@@ -280,7 +450,7 @@ export default function DirectorDashboard() {
                   <span style={{ textAlign: 'center' }}>Peor nota</span>
                 </div>
                 {alertas.map((a, i) => (
-                  <div key={i} style={{ ...es.alertaGridFila, background: i % 2 === 0 ? '#fff' : '#fffde7' }}>
+                  <div key={i} style={{ ...es.alertaGridFila, background: i % 2 === 0 ? '#fff' : '#fffaf3' }}>
                     <span style={{ fontWeight: '700', color: '#333' }}>{formatearApellidoPrimero(a.nombre_estudiante)}</span>
                     <span style={{ color: '#555' }}>{a.nombre_materia}</span>
                     <span style={{ color: '#888' }}>Grado {a.grado}° {a.nombre_grupo}</span>
@@ -296,93 +466,147 @@ export default function DirectorDashboard() {
         )}
 
         {/* Leyenda */}
-        <div style={es.leyenda}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SemaforoDot color="#ef5350" size={10} /> Promedio &lt; 3.5 — Bajo</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SemaforoDot color="#ffa726" size={10} /> Promedio 3.5–3.9 — Básico</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SemaforoDot color="#66bb6a" size={10} /> Promedio ≥ 4.0 — Alto / Superior</span>
-        </div>
+      <div style={es.leyenda}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SemaforoDot color="#ef5350" size={10} /> Promedio &lt; 3.5 — Bajo</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SemaforoDot color="#ffa726" size={10} /> Promedio 3.5–3.9 — Básico</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><SemaforoDot color="#66bb6a" size={10} /> Promedio ≥ 4.0 — Alto / Superior</span>
       </div>
-    </div>
+    </LayoutDirector>
   );
 }
 
 const es = {
-  pagina: { minHeight: '100vh', background: '#f0f2f5' },
-  contenido: { padding: '28px 24px', maxWidth: '1200px', margin: '0 auto' },
-  encabezado: { marginBottom: '24px' },
-  colegio: { fontSize: '22px', fontWeight: '800', color: '#333', margin: 0 },
-  bienvenida: { fontSize: '14px', color: '#888', margin: '4px 0 0' },
-  briefingCard: {
-    display: 'flex', alignItems: 'center', gap: '14px',
-    background: 'linear-gradient(135deg, #1a237e, #283593)',
-    borderRadius: '16px', padding: '18px 20px', marginBottom: '20px',
-    boxShadow: '0 4px 16px rgba(26,35,126,0.25)',
+  encabezado: {
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+    gap: '20px', flexWrap: 'wrap', marginBottom: '22px',
   },
-  briefingIcono: {
-    width: '38px', height: '38px', borderRadius: '50%',
-    background: 'rgba(255,255,255,0.15)', display: 'flex',
+  saludoNombre: { fontSize: '30px', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.6px' },
+  saludoRol: { fontSize: '15px', color: '#6b7280', margin: '4px 0 0' },
+  fechaBloque: { display: 'flex', alignItems: 'center', gap: '10px' },
+  fecha: { display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151' },
+  actualizado: { display: 'block', fontSize: '12px', color: '#9ca3af', marginTop: '2px' },
+
+  /* Aviso de riesgo + resumen del día */
+  banner: {
+    position: 'relative', overflow: 'hidden',
+    display: 'flex', alignItems: 'center', gap: '16px',
+    background: 'linear-gradient(115deg, #1e3a8a 0%, #2554c7 48%, #3b82f6 100%)',
+    borderRadius: '16px', padding: '20px 22px', marginBottom: '22px',
+    boxShadow: '0 10px 30px rgba(30,58,138,0.22)',
+  },
+  bannerOnda: { position: 'absolute', right: '180px', top: 0, bottom: 0, width: '230px', opacity: 0.55, pointerEvents: 'none' },
+  bannerIcono: {
+    position: 'relative', width: '42px', height: '42px', borderRadius: '50%',
+    background: 'rgba(255,255,255,0.16)', display: 'flex',
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  briefingTexto: { flex: 1, color: '#fff', fontSize: '14.5px', lineHeight: 1.6 },
-  briefingBtn: {
-    width: '32px', height: '32px', borderRadius: '50%', border: 'none',
-    background: 'rgba(255,255,255,0.15)', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  bannerTexto: { position: 'relative', flex: 1, minWidth: 0 },
+  bannerTitulo: { display: 'block', color: '#fff', fontSize: '16px', fontWeight: '800', lineHeight: 1.35 },
+  bannerSub: { display: 'block', color: 'rgba(255,255,255,0.85)', fontSize: '13px', marginTop: '4px', lineHeight: 1.5 },
+  bannerBtn: {
+    position: 'relative', flexShrink: 0, background: 'rgba(255,255,255,0.12)', color: '#fff',
+    border: '1px solid rgba(255,255,255,0.45)', borderRadius: '999px', padding: '10px 20px',
+    fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit',
   },
-  filtroRow: { display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' },
+  bannerRefresh: {
+    position: 'relative', flexShrink: 0, width: '32px', height: '32px', borderRadius: '50%',
+    border: 'none', background: 'rgba(255,255,255,0.16)', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+
+  filtroRow: { display: 'flex', gap: '9px', marginBottom: '20px', flexWrap: 'wrap' },
   filtroBton: {
-    padding: '8px 18px', borderRadius: '20px', border: '2px solid #e0e0e0',
+    padding: '9px 20px', borderRadius: '999px', border: '1px solid #e2e6ef',
     background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
-    color: '#666', fontFamily: 'inherit',
+    color: '#4b5563', fontFamily: 'inherit',
   },
   filtroBtonActivo: {
-    background: 'linear-gradient(135deg, #667eea, #764ba2)',
-    borderColor: '#667eea', color: '#fff',
+    background: 'linear-gradient(135deg, #6366f1, #7c3aed)',
+    borderColor: 'transparent', color: '#fff',
   },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px,1fr))', gap: '16px', marginBottom: '28px' },
+
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '16px', marginBottom: '26px' },
   statCard: {
-    background: '#fff', borderRadius: '16px', padding: '20px',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    display: 'flex', alignItems: 'center', gap: '14px',
+    background: '#fff', borderRadius: '16px', padding: '18px 20px',
+    border: '1px solid #eef1f7', boxShadow: '0 2px 12px rgba(20,30,70,0.06)',
   },
-  statValor: { fontSize: '32px', fontWeight: '800' },
-  statLabel: { fontSize: '12px', color: '#888', textAlign: 'center' },
+  statIconoWrap: {
+    width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  statContenido: { flex: 1, minWidth: 0 },
+  statValor: { display: 'block', fontSize: '26px', fontWeight: '800', color: '#111827', lineHeight: 1.1 },
+  statLabel: { display: 'block', fontSize: '12.5px', color: '#6b7280', marginTop: '2px' },
+  statNota: { display: 'block', fontSize: '11px', color: '#16a34a', marginTop: '6px' },
+
   error: { background: '#fff0f0', color: '#c62828', padding: '14px 18px', borderRadius: '12px', marginBottom: '20px' },
-  sinDatos: { background: '#fff', borderRadius: '16px', padding: '48px', textAlign: 'center', color: '#888', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 },
-  tablaWrap: { background: '#fff', borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', overflowX: 'auto' },
-  tabla: { width: '100%', borderCollapse: 'collapse', minWidth: '780px' },
-  th: {
-    padding: '12px 14px', fontSize: '12px', fontWeight: '700', color: '#555',
-    borderBottom: '2px solid #f0f0f0', textAlign: 'left', background: '#fafafa',
+  sinDatos: { background: '#fff', borderRadius: '16px', padding: '48px', textAlign: 'center', color: '#888', boxShadow: '0 2px 12px rgba(20,30,70,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 },
+  tablaCard: {
+    background: '#fff', borderRadius: '16px', border: '1px solid #eef1f7',
+    boxShadow: '0 2px 12px rgba(20,30,70,0.06)', marginBottom: '22px', overflow: 'hidden',
   },
-  tr: { borderBottom: '1px solid #f5f5f5' },
-  td: { padding: '12px 14px', fontSize: '14px', color: '#333' },
+  tablaCardHead: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '14px', padding: '16px 20px', borderBottom: '1px solid #f1f4f9',
+  },
+  tablaTitulo: { margin: 0, fontSize: '15px', fontWeight: '800', color: '#111827' },
+  tablaLink: {
+    background: 'none', border: 'none', padding: 0, fontSize: '12.5px', fontWeight: '700',
+    color: '#4f46e5', cursor: 'pointer', fontFamily: 'inherit',
+  },
+  tablaScroll: { overflowX: 'auto' },
+  tabla: { width: '100%', borderCollapse: 'collapse', minWidth: '820px' },
+  th: {
+    padding: '11px 14px', fontSize: '11.5px', fontWeight: '700', color: '#6b7280',
+    borderBottom: '1px solid #eef1f7', textAlign: 'left', background: '#fafbfe',
+  },
+  tr: { borderBottom: '1px solid #f5f7fb' },
+  td: { padding: '12px 14px', fontSize: '13.5px', color: '#374151' },
   nivelChip: (bg, color) => ({
-    display: 'inline-block', padding: '3px 10px', borderRadius: '20px',
-    fontSize: '12px', fontWeight: '700', background: bg, color,
+    display: 'inline-block', minWidth: '54px', padding: '4px 10px', borderRadius: '7px',
+    fontSize: '12px', fontWeight: '700', background: bg, color, textAlign: 'center',
   }),
-  accionesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '20px' },
+
+  accionesGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '12px', marginBottom: '12px' },
+  accionesGridAncho: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginBottom: '26px' },
   btnAccion: {
-    color: '#fff', border: 'none', borderRadius: '12px', padding: '14px 20px',
-    fontSize: '14px', fontWeight: '700', cursor: 'pointer', textAlign: 'left',
-    fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10,
+    position: 'relative', display: 'flex', alignItems: 'center', gap: '10px',
+    color: '#fff', border: 'none', borderRadius: '14px', padding: '16px',
+    cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', minHeight: '76px',
+    boxShadow: '0 6px 16px rgba(20,30,70,0.10)',
+  },
+  btnAccionIcono: {
+    width: '30px', height: '30px', borderRadius: '9px', background: 'rgba(255,255,255,0.18)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  btnAccionTexto: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 },
+  btnAccionLabel: { fontSize: '13.5px', fontWeight: '800', lineHeight: 1.25 },
+  btnAccionDesc: { fontSize: '11.5px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.3 },
+  btnAccionBadge: {
+    position: 'absolute', top: '12px', right: '12px', minWidth: '22px', height: '22px',
+    borderRadius: '999px', background: '#fff', color: '#dc2626', fontSize: '11.5px',
+    fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
   },
   leyenda: {
     display: 'flex', gap: '24px', flexWrap: 'wrap',
-    marginTop: '20px', fontSize: '12px', color: '#888', alignItems: 'center',
+    marginTop: '4px', fontSize: '12px', color: '#7b8598', alignItems: 'center',
   },
-  alertaBanner: { background: '#fff3e0', border: '1px solid #ffb74d', borderRadius: '12px', marginTop: '24px', overflow: 'hidden' },
-  alertaEncabezado: { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' },
-  alertaTexto: { flex: 1, fontSize: '14px', color: '#e65100' },
-  alertaLista: { borderTop: '1px solid #ffe0b2', overflowX: 'auto' },
+  alertaBanner: {
+    background: '#fff', border: '1px solid #ffe3c2', borderRadius: '16px',
+    marginBottom: '22px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(20,30,70,0.06)',
+  },
+  alertaEncabezado: { display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '15px 18px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' },
+  alertaTexto: { flex: 1, fontSize: '13.5px', color: '#b45309' },
+  alertaLista: { borderTop: '1px solid #ffe9d1', overflowX: 'auto' },
   alertaGridHeader: {
     display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr',
-    padding: '8px 18px', fontSize: '12px', fontWeight: '700', color: '#888',
-    background: '#fff8e1', gap: '8px',
+    padding: '9px 18px', fontSize: '11.5px', fontWeight: '700', color: '#a2855f',
+    background: '#fff9f0', gap: '8px',
   },
   alertaGridFila: {
     display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr',
     padding: '10px 18px', fontSize: '13px', gap: '8px', alignItems: 'center',
   },
-  alertaBadge: { background: '#ffccbc', color: '#bf360c', borderRadius: '20px', padding: '2px 10px', fontSize: '12px', fontWeight: '700' },
+  alertaBadge: { background: '#ffe0cc', color: '#bf360c', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontWeight: '700' },
 };

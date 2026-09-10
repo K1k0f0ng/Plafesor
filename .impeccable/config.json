@@ -1,0 +1,21 @@
+{
+  "buildPath": "comp",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-09-10T19:36:39.568Z",
+        "reason": "user confirmed: reverted to original landing design after user rejected the redesign; Inter is the original, intentional typeface"
+      },
+      {
+        "rule": "overused-font",
+        "value": "instrument serif",
+        "createdAt": "2026-09-10T19:36:39.819Z",
+        "reason": "user confirmed: reverted to original landing design after user rejected the redesign; Instrument Serif is the original, intentional typeface"
+      }
+    ]
+  }
+}

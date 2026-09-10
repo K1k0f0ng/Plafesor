@@ -7,5 +7,5 @@ Plantillas reutilizables de documentos (no de código):
 - plantilla de CHANGELOG para cada nueva versión en `releases/`
 - plantilla de checklist de entrega
 
-Se completan en la Fase 4 del plan de rearquitectura, junto con la documentación en `/docs` y
-`/checklists`.
+Pendiente por redactar — `/docs` y `/checklists` ya están completos; estas plantillas de documentos
+todavía no.

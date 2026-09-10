@@ -392,6 +392,33 @@ export function IconFlame({ size, style }) {
   );
 }
 
+export function IconMenu({ size, style }) {
+  return (
+    <SVG size={size} style={style}>
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="14" y2="17" />
+    </SVG>
+  );
+}
+
+export function IconChevronRight({ size, style }) {
+  return (
+    <SVG size={size} style={style}>
+      <polyline points="9 18 15 12 9 6" />
+    </SVG>
+  );
+}
+
+export function IconShield({ size, style }) {
+  return (
+    <SVG size={size} style={style}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <polyline points="9 12 11.5 14.5 15.5 10" />
+    </SVG>
+  );
+}
+
 /** Colored dot used as a semaphore / status indicator */
 export function SemaforoDot({ color, size = 11 }) {
   return (

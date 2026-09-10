@@ -8,9 +8,8 @@ notificaciones por WhatsApp).
 
 Cada colegio tiene su **propia instalación independiente**: su propio dominio, hosting, base de
 datos, configuración, logo, colores, usuarios y respaldos. Ningún colegio comparte información con
-otro. Ver `AUDITORIA_TECNICA_2026-07-14.md` para el contexto completo de esta decisión y el estado
-técnico del sistema al momento de adoptarla, y `AUDITORIA_TECNICA_2026-08-12.md` para el seguimiento
-más reciente (qué se resolvió, qué sigue pendiente).
+otro. Ver `AUDITORIA_TECNICA_2026-08-12.md` para el estado técnico más reciente (qué se resolvió,
+qué sigue pendiente).
 
 ## Estructura del repositorio
 
@@ -54,7 +53,7 @@ PC de desarrollo → pruebas locales → corrección → nueva versión en relea
 | Configurar correo/WhatsApp/IA | `docs/CONFIGURACION.md`, `docs/SMTP.md` |
 | Desarrollar una funcionalidad nueva | `docs/MANUAL_TECNICO.md` |
 | Usar la plataforma como administrador del colegio | `docs/MANUAL_ADMIN.md` |
-| Entender el estado técnico completo y las decisiones tomadas | `AUDITORIA_TECNICA_2026-07-14.md` (decisión) → `AUDITORIA_TECNICA_2026-08-12.md` (seguimiento) |
+| Entender el estado técnico completo y las decisiones tomadas | `AUDITORIA_TECNICA_2026-08-12.md` |
 
 ## Documentación completa
 

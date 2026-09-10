@@ -8,7 +8,7 @@ import { API } from '../config/api';
 export default function Colegios() {
   const [colegio, setColegio]     = useState(null);
   const [cargando, setCargando]   = useState(true);
-  const [form, setForm]           = useState({ nombre: '', ciudad: '' });
+  const [form, setForm]           = useState({ nombre: '', ciudad: '', lema: '' });
   const [editando, setEditando]   = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
@@ -22,7 +22,7 @@ export default function Colegios() {
       .then(r => {
         const datos = r.data.data?.[0] || null;
         setColegio(datos);
-        if (datos) setForm({ nombre: datos.nombre || '', ciudad: datos.ciudad || '' });
+        if (datos) setForm({ nombre: datos.nombre || '', ciudad: datos.ciudad || '', lema: datos.lema || '' });
       })
       .catch(() => setError('No se pudo cargar la información de la institución'))
       .finally(() => setCargando(false));
@@ -105,6 +105,7 @@ export default function Colegios() {
             <div style={{ flex: 1 }}>
               <h3 style={es.cardTitulo}>{cargando ? 'Cargando...' : (colegio?.nombre || '—')}</h3>
               {colegio?.ciudad && <p style={es.ciudad}>{colegio.ciudad}</p>}
+              {colegio?.lema && <p style={es.lema}>{colegio.lema}</p>}
             </div>
 
             {!cargando && !editando && colegio && (
@@ -139,6 +140,17 @@ export default function Colegios() {
                     placeholder="Ciudad o municipio"
                   />
                 </div>
+              </div>
+              <div style={es.formGrupo}>
+                <label style={es.label}>Lema o eslogan</label>
+                <input
+                  style={es.input}
+                  value={form.lema}
+                  onChange={e => setForm({ ...form, lema: e.target.value })}
+                  placeholder="Ej: Formación integral para un mejor mañana"
+                  maxLength={255}
+                />
+                <p style={es.ayuda}>Se muestra debajo del nombre del colegio en el panel del director.</p>
               </div>
               <div style={es.formBtns}>
                 <button type="button" onClick={() => { setEditando(false); setError(''); }} style={es.btnCancelar}>
@@ -176,6 +188,7 @@ const es = {
 
   cardTitulo: { fontSize: '20px', fontWeight: '800', color: '#333', margin: '0 0 4px' },
   ciudad: { fontSize: '14px', color: '#888', margin: 0 },
+  lema: { fontSize: '13px', color: '#aaa', margin: '2px 0 0', fontStyle: 'italic' },
   btnEditar: {
     marginLeft: 'auto', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff',
     border: 'none', borderRadius: '8px', padding: '8px 18px', fontSize: '13px',
@@ -185,6 +198,7 @@ const es = {
   formFila: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' },
   formGrupo: { display: 'flex', flexDirection: 'column', gap: '6px' },
   label: { fontSize: '13px', fontWeight: '600', color: '#555' },
+  ayuda: { fontSize: '11.5px', color: '#aaa', margin: '2px 0 0' },
   input: { padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #e0e0e0', fontSize: '14px', fontFamily: 'inherit', outline: 'none' },
   formBtns: { display: 'flex', gap: '12px', justifyContent: 'flex-end' },
   btnPrimario: { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 22px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' },

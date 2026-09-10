@@ -19,7 +19,7 @@ function tiempoRelativo(fecha) {
   return `Hace ${Math.floor(diff / 86400)} d`;
 }
 
-export default function NotificacionBell() {
+export default function NotificacionBell({ oscuro = false }) {
   const [notifs,  setNotifs]  = useState([]);
   const [sinLeer, setSinLeer] = useState(0);
   const [abierto, setAbierto] = useState(false);
@@ -70,7 +70,11 @@ export default function NotificacionBell() {
 
       <button
         onClick={() => setAbierto(v => !v)}
-        style={{ ...es.bell, ...(sinLeer > 0 ? es.bellActivo : {}) }}
+        style={{
+          ...es.bell,
+          ...(oscuro ? es.bellOscuro : {}),
+          ...(sinLeer > 0 ? (oscuro ? es.bellActivoOscuro : es.bellActivo) : {}),
+        }}
         title="Notificaciones"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -147,6 +151,15 @@ const es = {
     borderColor: '#ffcdd2',
     color: '#c62828',
     background: '#fff5f5',
+  },
+  bellOscuro: {
+    border: '1px solid rgba(255,255,255,0.25)',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  bellActivoOscuro: {
+    borderColor: 'rgba(255,255,255,0.4)',
+    color: '#fff',
+    background: 'rgba(255,255,255,0.12)',
   },
   badge: {
     position: 'absolute',

@@ -63,8 +63,18 @@ export function AuthProvider({ children }) {
     iniciarVigilancia(nuevoToken);
   }
 
+  // Actualiza campos puntuales del usuario en sesión (ej. tras subir una foto)
+  // sin necesidad de volver a iniciar sesión.
+  function actualizarUsuario(cambios) {
+    setUsuario(prev => {
+      const actualizado = { ...prev, ...cambios };
+      localStorage.setItem('playfesor_usuario', JSON.stringify(actualizado));
+      return actualizado;
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ usuario, token, iniciarSesion, cerrarSesion, cargando }}>
+    <AuthContext.Provider value={{ usuario, token, iniciarSesion, actualizarUsuario, cerrarSesion, cargando }}>
       {children}
     </AuthContext.Provider>
   );

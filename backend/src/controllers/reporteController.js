@@ -1,6 +1,22 @@
 const db = require('../database');
 const { ordenApellido } = require('../utils/ordenNombre');
 
+// Colombia no tiene horario de verano, así que el desfase fijo -05:00 es
+// siempre correcto — evita depender de cómo esté configurada la zona
+// horaria del servidor MySQL (fuera de nuestro control en el hosting).
+function mesActualColombia() {
+  const ahora = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  return `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// Dado un mes 'YYYY-MM', devuelve el mes calendario inmediatamente anterior
+function mesAnterior(mes) {
+  const [anio, mesNum] = mes.split('-').map(Number);
+  const fecha = new Date(Date.UTC(anio, mesNum - 1, 1));
+  fecha.setUTCMonth(fecha.getUTCMonth() - 1);
+  return `${fecha.getUTCFullYear()}-${String(fecha.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 // GET /api/reportes/docente/:id — todas las actividades del docente con estadísticas
 async function reporteDocente(req, res) {
   const { id } = req.params;
@@ -105,7 +121,7 @@ async function resumenColegio(req, res) {
   const queryParams = periodoFiltro ? [periodoFiltro, parseInt(colegio_id)] : [parseInt(colegio_id)];
 
   try {
-    const [[colegio]] = await db.query('SELECT nombre FROM colegios WHERE id = ?', [colegio_id]);
+    const [[colegio]] = await db.query('SELECT nombre, ciudad, lema, logo_url FROM colegios WHERE id = ?', [colegio_id]);
 
     const [grupos] = await db.query(`
       SELECT
@@ -132,7 +148,57 @@ async function resumenColegio(req, res) {
       ORDER BY g.grado ASC, g.nombre ASC
     `, queryParams);
 
-    res.json({ data: { colegio: colegio?.nombre || '', grupos } });
+    // Comparativo real "vs. mes anterior" — solo se registra sobre la vista
+    // sin filtrar por período, para no ensuciar el histórico con un recorte
+    let comparativoMesAnterior = null;
+    if (!periodoFiltro) {
+      const totalEstudiantes = grupos.reduce((s, g) => s + (g.total_estudiantes || 0), 0);
+      const totalActividades = grupos.reduce((s, g) => s + (g.total_actividades || 0), 0);
+      const conPromedio = grupos.filter(g => g.promedio !== null);
+      const promedioGlobal = conPromedio.length
+        ? +(conPromedio.reduce((s, g) => s + parseFloat(g.promedio), 0) / conPromedio.length).toFixed(1)
+        : null;
+
+      const mesActual = mesActualColombia();
+      const mesPrevio = mesAnterior(mesActual);
+
+      const [[snapshotPrevio]] = await db.query(
+        `SELECT total_grupos, total_estudiantes, total_actividades, promedio
+         FROM colegio_metricas_mensuales WHERE colegio_id = ? AND mes = ?`,
+        [colegio_id, mesPrevio]
+      );
+
+      await db.query(
+        `INSERT IGNORE INTO colegio_metricas_mensuales
+           (colegio_id, mes, total_grupos, total_estudiantes, total_actividades, promedio)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [colegio_id, mesActual, grupos.length, totalEstudiantes, totalActividades, promedioGlobal]
+      );
+
+      if (snapshotPrevio) {
+        comparativoMesAnterior = {
+          grupos: grupos.length - snapshotPrevio.total_grupos,
+          estudiantes: totalEstudiantes - snapshotPrevio.total_estudiantes,
+          actividades: totalActividades - snapshotPrevio.total_actividades,
+          promedio: (promedioGlobal !== null && snapshotPrevio.promedio !== null)
+            ? +(promedioGlobal - parseFloat(snapshotPrevio.promedio)).toFixed(1)
+            : null,
+        };
+      }
+    }
+
+    res.json({
+      data: {
+        colegio: {
+          nombre: colegio?.nombre || '',
+          ciudad: colegio?.ciudad || '',
+          lema: colegio?.lema || '',
+          logo_url: colegio?.logo_url || null,
+        },
+        grupos,
+        comparativoMesAnterior,
+      },
+    });
   } catch (err) {
     console.error('Error en resumen colegio:', err);
     res.status(500).json({ error: 'Error al generar el resumen del colegio' });

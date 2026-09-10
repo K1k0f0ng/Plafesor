@@ -1,0 +1,106 @@
+{
+  "title": "Elige el mundo visual para la landing de Playfesor",
+  "question": "La tirada asignó La Citación Institucional. Consérvala, toma un reto, o vuelve a tirar.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "La Citación Institucional",
+      "kicker": "THE ROLL",
+      "lineage": "circular y citación escolar oficial colombiana",
+      "thesis": "La landing como el oficio institucional que un rector recibe y firma — no como un tablero de SaaS.",
+      "palette": ["#f4efe0", "#1a2333", "#b0332a", "#8a8578"],
+      "materials": ["papel oficio con membrete", "sellos y timbres institucionales", "folios en monoespaciada"],
+      "viewport": "Membrete arriba, ASUNTO como titular principal, cuerpo numerado por párrafos, un sello vivo de alerta marcando al estudiante de mayor riesgo, firma y radicado al pie.",
+      "risk": "Puede leerse rígido o frío si el sello y las alertas no laten con datos reales.",
+      "raised": [
+        { "from": "challenger-gravityrain", "raise": "Un momento real de movimiento: el sello de alerta respira y se actualiza como si llegara en vivo, no una página estática." },
+        { "from": "challenger-coptic", "raise": "Honestidad estructural: cada score de riesgo muestra su trazabilidad (notas, asistencia, actividades) a la vista, nunca caja negra." },
+        { "from": "challenger-breton", "raise": "Un sistema de sellos y folios propio, numerado y repetible, reemplaza los íconos genéricos." },
+        { "from": "challenger-zine", "raise": "Una firma manuscrita real y una nota marginal cálida evitan que el tono institucional se sienta frío para docentes y padres." },
+        { "from": "challenger-couture", "raise": "El rojo de sello se reserva exclusivamente para la alerta de mayor prioridad, nunca decorativo en otro lugar." }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "El Boletín Estadístico DANE-MEN",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "boletín estadístico oficial con mapas de coropletas regionales",
+      "thesis": "La institución leída como un boletín de indicadores oficiales: mapas de calor, cifras grandes, notas metodológicas al pie.",
+      "palette": ["#fbfaf6", "#12213b", "#c2410c", "#9ca3af"],
+      "materials": ["papel de boletín gubernamental", "mapas de coropletas", "tablas de cifras"],
+      "viewport": "Un mapa/heatmap institucional grande como hero, cifra clave gigante junto a él, notas metodológicas pequeñas al pie como en un boletín DANE.",
+      "risk": "Es la dirección de mayor resonancia posible, pero también la más segura: puede sentirse menos sorprendente si no se ejecuta con contraste tipográfico fuerte."
+    },
+    {
+      "id": "challenger-sevensegment",
+      "label": "El Marcador de Riesgo",
+      "verdict": "competitive",
+      "lineage": "relojes, marcadores deportivos y tótems de precio en siete segmentos",
+      "palette": ["#0d0f12", "#ff3b30", "#ffb020", "#34d058"],
+      "materials": ["máscara de siete segmentos", "vidrio y neón"],
+      "case": "El score de riesgo cambiando como un marcador en vivo es una metáfora de producto muy fuerte, pero el fondo casi negro con dígitos brillando se acerca al cliché de \"dashboard de IA oscuro\" que se pidió evitar, y resuena menos como algo específicamente colombiano/institucional que la citación.",
+      "risk": "Puede leerse como el mismo dashboard oscuro genérico que ya tiene la página actual."
+    },
+    {
+      "id": "challenger-coptic",
+      "label": "El Cuaderno de Cosido Visible",
+      "verdict": "declined",
+      "lineage": "encuadernación copta con cosido expuesto",
+      "palette": ["#e8e2d0", "#3a2f22", "#8b7355"],
+      "materials": ["hilo de lino crudo", "tapas de madera"],
+      "case": "Bello pero es un lenguaje de artesanía editorial de nicho; un rector colombiano no lo reconoce como su mundo, y no traduce con claridad al motor de riesgo.",
+      "kept": "Honestidad estructural: mostrar el mecanismo a la vista."
+    },
+    {
+      "id": "challenger-breton",
+      "label": "El Programa de Ornamento Regional",
+      "verdict": "declined",
+      "lineage": "alfabeto geométrico y ornamento regional, publicado como libro de láminas numeradas",
+      "palette": ["#6b7280", "#e7ddc8", "#9a2b1f"],
+      "materials": ["láminas numeradas", "unidades geométricas"],
+      "case": "El material es de otra región y cultura, no colombiana; un rector no lo identifica como propio, aunque la idea de un sistema numerado y estandarizado sí resuena.",
+      "kept": "Un sistema de marcas propio, numerado y repetible."
+    },
+    {
+      "id": "challenger-gravityrain",
+      "label": "El Jardín de Lluvia con Gravedad",
+      "verdict": "declined",
+      "lineage": "mundos surrealistas de gravedad imposible",
+      "palette": ["#2b3a35", "#3b82f6", "#b91c1c", "#0a0a0a"],
+      "materials": ["campo de física vectorial", "pintura de nubes"],
+      "case": "Demasiado onírico y lúdico para un comprador institucional serio; no comunica con claridad boletines, riesgo o cumplimiento MEN.",
+      "kept": "Un momento real de movimiento y asombro."
+    },
+    {
+      "id": "challenger-couture",
+      "label": "El Atelier de Alta Costura en Miniatura",
+      "verdict": "declined",
+      "lineage": "atelier de moda couture en escala de muñecas",
+      "palette": ["#f2ede4", "#e8c4c4", "#1a1a1a", "#a33327"],
+      "materials": ["formas de vestir en miniatura", "papel de seda", "cajas de sombrero"],
+      "case": "Registro de lujo y moda totalmente ajeno a un colegio colombiano; no aporta claridad de producto.",
+      "kept": "Un rojo reservado exclusivamente para lo más importante."
+    },
+    {
+      "id": "challenger-zine",
+      "label": "El Fanzine Técnico Dibujado a Mano",
+      "verdict": "declined",
+      "lineage": "zine explicativo dibujado a mano con mascota",
+      "palette": ["#faf6ec", "#111111", "#facc15", "#2dd4bf"],
+      "materials": ["marcador", "resaltador"],
+      "case": "Demasiado infantil e informal para el rector comprador; se pidió explícitamente evitar un tono juguetón.",
+      "kept": "Una firma o nota cálida y humana en algún punto de la página."
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "canon": true,
+  "canonCard": {
+    "label": "El SaaS Institucional Genérico",
+    "thesis": "Dashboard oscuro con mockup de producto flotante y tarjetas bento — lo que ya tiene la página hoy.",
+    "palette": ["#0b1220", "#e5e7eb", "#3b82f6"],
+    "materials": ["gradientes", "glassmorphism", "mockups de producto"],
+    "viewport": "Hero oscuro con mockup de dashboard flotante, grid de tarjetas bento debajo.",
+    "risk": "Indistinguible de cualquier arranque de IA — exactamente lo que se pidió evitar."
+  },
+  "steer": true
+}

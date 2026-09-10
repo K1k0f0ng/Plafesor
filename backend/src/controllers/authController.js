@@ -1,8 +1,29 @@
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const crypto = require('crypto');
+const path   = require('path');
+const fs     = require('fs');
+const multer = require('multer');
 const db     = require('../database');
 const { enviarEmail } = require('../services/emailService');
+
+const uploadsDirUsuarios = path.join(__dirname, '../../uploads/usuarios');
+if (!fs.existsSync(uploadsDirUsuarios)) fs.mkdirSync(uploadsDirUsuarios, { recursive: true });
+
+const uploadFotoPerfil = multer({
+  storage: multer.diskStorage({
+    destination: uploadsDirUsuarios,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `usuario_${req.usuario.id}_${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (/\.(jpe?g|png|webp)$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes (jpg, png, webp)'));
+  },
+}).single('foto');
 
 async function enviarEmailReset(destinatario, nombre, token) {
   const enlace = `${process.env.FRONTEND_URL || 'https://playfesor.co'}/reset-password?token=${token}`;
@@ -45,7 +66,7 @@ async function login(req, res) {
 
   try {
     const [filas] = await db.query(
-      'SELECT id, nombre, email, password, rol, colegio_id, activo, grupo_dirigido_id FROM usuarios WHERE email = ?',
+      'SELECT id, nombre, email, password, rol, colegio_id, activo, grupo_dirigido_id, foto_url FROM usuarios WHERE email = ?',
       [email]
     );
 
@@ -84,7 +105,8 @@ async function login(req, res) {
         email: usuario.email,
         rol: usuario.rol,
         colegio_id: usuario.colegio_id,
-        grupo_dirigido_id: usuario.grupo_dirigido_id
+        grupo_dirigido_id: usuario.grupo_dirigido_id,
+        foto_url: usuario.foto_url
       }
     });
   } catch (err) {
@@ -97,7 +119,7 @@ async function login(req, res) {
 async function me(req, res) {
   try {
     const [filas] = await db.query(
-      'SELECT id, nombre, email, rol, colegio_id, activo, creado_en, grupo_dirigido_id FROM usuarios WHERE id = ?',
+      'SELECT id, nombre, email, rol, colegio_id, activo, creado_en, grupo_dirigido_id, foto_url FROM usuarios WHERE id = ?',
       [req.usuario.id]
     );
 
@@ -110,6 +132,30 @@ async function me(req, res) {
     console.error('Error en me:', err);
     res.status(500).json({ error: 'Error al obtener el usuario' });
   }
+}
+
+// POST /api/auth/foto — el usuario autenticado sube su propia foto de perfil
+async function subirFotoPerfil(req, res) {
+  uploadFotoPerfil(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+
+    try {
+      const [[actual]] = await db.query('SELECT foto_url FROM usuarios WHERE id = ?', [req.usuario.id]);
+
+      if (actual?.foto_url) {
+        const anterior = path.join(__dirname, '../..', actual.foto_url);
+        if (fs.existsSync(anterior)) fs.unlinkSync(anterior);
+      }
+
+      const foto_url = `/uploads/usuarios/${req.file.filename}`;
+      await db.query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [foto_url, req.usuario.id]);
+      res.json({ data: { foto_url } });
+    } catch (dbErr) {
+      console.error('Error al guardar la foto de perfil:', dbErr);
+      res.status(500).json({ error: 'Error al guardar la foto de perfil' });
+    }
+  });
 }
 
 // POST /api/auth/solicitar-reset — pide enlace de recuperación
@@ -172,4 +218,4 @@ async function resetearPassword(req, res) {
   }
 }
 
-module.exports = { login, me, solicitarReset, resetearPassword };
+module.exports = { login, me, subirFotoPerfil, solicitarReset, resetearPassword };
