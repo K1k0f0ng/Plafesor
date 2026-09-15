@@ -83,7 +83,7 @@ información completa antes de tocar `deployment/PLAYFESOR_TEMPLATE/`.
 - [ ] Año lectivo
 - [ ] Períodos (fechas de inicio/fin de cada uno)
 - [ ] Escala de valoración (por defecto, la escala MEN ya viene configurada)
-- [ ] Grados que maneja el colegio (5° a 9°, o el rango que aplique)
+- [ ] Grados que maneja el colegio (5° a 11°, o el rango que aplique)
 - [ ] Cursos/grupos por grado
 - [ ] Jornadas (mañana, tarde, única)
 - [ ] Áreas y asignaturas (además del catálogo MEN precargado, si el colegio tiene asignaturas propias)

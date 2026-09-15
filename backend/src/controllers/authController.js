@@ -6,6 +6,7 @@ const fs     = require('fs');
 const multer = require('multer');
 const db     = require('../database');
 const { enviarEmail } = require('../services/emailService');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 const uploadsDirUsuarios = path.join(__dirname, '../../uploads/usuarios');
 if (!fs.existsSync(uploadsDirUsuarios)) fs.mkdirSync(uploadsDirUsuarios, { recursive: true });
@@ -66,7 +67,12 @@ async function login(req, res) {
 
   try {
     const [filas] = await db.query(
-      'SELECT id, nombre, email, password, rol, colegio_id, activo, grupo_dirigido_id, foto_url FROM usuarios WHERE email = ?',
+      `SELECT u.id, u.nombre, u.email, u.password, u.rol, u.colegio_id, u.activo,
+              u.grupo_dirigido_id, u.foto_url, u.password_actualizada_en,
+              c.dias_rotacion_password
+       FROM usuarios u
+       LEFT JOIN colegios c ON c.id = u.colegio_id
+       WHERE u.email = ?`,
       [email]
     );
 
@@ -85,6 +91,20 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
+    // Rotación de contraseña: si el colegio la exige y ya venció, se avisa en
+    // la respuesta del login — el frontend bloquea la navegación hasta que
+    // la cambie, pero la sesión sí queda iniciada (evita un segundo flujo de
+    // autenticación solo para esto).
+    let debeCambiarPassword = false;
+    if (
+      ['admin', 'director', 'docente'].includes(usuario.rol) &&
+      usuario.dias_rotacion_password && usuario.password_actualizada_en
+    ) {
+      const limite = new Date(usuario.password_actualizada_en);
+      limite.setDate(limite.getDate() + usuario.dias_rotacion_password);
+      debeCambiarPassword = limite < new Date();
+    }
+
     const payload = {
       id: usuario.id,
       rol: usuario.rol,
@@ -96,6 +116,16 @@ async function login(req, res) {
       expiresIn: process.env.JWT_EXPIRES_IN || '8h'
     });
 
+    // Solo se audita el inicio de sesión de roles con acceso administrativo:
+    // registrar cada login de estudiante/docente saturaría la bitácora sin aportar valor.
+    if (['director', 'admin'].includes(usuario.rol) && usuario.colegio_id) {
+      registrarAuditoria({
+        colegio_id: usuario.colegio_id, usuario_id: usuario.id,
+        usuario_nombre: usuario.nombre, usuario_rol: usuario.rol,
+        accion: 'inicio_sesion', entidad: 'usuario', entidad_id: usuario.id,
+      });
+    }
+
     res.json({
       mensaje: 'Login exitoso',
       token,
@@ -106,7 +136,8 @@ async function login(req, res) {
         rol: usuario.rol,
         colegio_id: usuario.colegio_id,
         grupo_dirigido_id: usuario.grupo_dirigido_id,
-        foto_url: usuario.foto_url
+        foto_url: usuario.foto_url,
+        debe_cambiar_password: debeCambiarPassword,
       }
     });
   } catch (err) {
@@ -207,7 +238,7 @@ async function resetearPassword(req, res) {
 
     const hash = await bcrypt.hash(password, 12);
     await db.query(
-      'UPDATE usuarios SET password = ?, reset_token = NULL, reset_expiry = NULL WHERE id = ?',
+      'UPDATE usuarios SET password = ?, reset_token = NULL, reset_expiry = NULL, password_actualizada_en = NOW() WHERE id = ?',
       [hash, filas[0].id]
     );
 
@@ -218,4 +249,37 @@ async function resetearPassword(req, res) {
   }
 }
 
-module.exports = { login, me, subirFotoPerfil, solicitarReset, resetearPassword };
+// PUT /api/auth/cambiar-password — usuario autenticado cambia su propia contraseña
+// (usado tanto para el cambio voluntario como para la rotación obligatoria)
+async function cambiarPassword(req, res) {
+  const { password_actual, password_nueva } = req.body;
+  if (!password_actual || !password_nueva) {
+    return res.status(400).json({ error: 'La contraseña actual y la nueva son obligatorias' });
+  }
+  if (password_nueva.length < 6) {
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+  }
+
+  try {
+    const [[usuario]] = await db.query('SELECT password FROM usuarios WHERE id = ?', [req.usuario.id]);
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const passwordCorrecta = await bcrypt.compare(password_actual, usuario.password);
+    if (!passwordCorrecta) {
+      return res.status(401).json({ error: 'La contraseña actual no es correcta' });
+    }
+
+    const hash = await bcrypt.hash(password_nueva, 12);
+    await db.query(
+      'UPDATE usuarios SET password = ?, password_actualizada_en = NOW() WHERE id = ?',
+      [hash, req.usuario.id]
+    );
+
+    res.json({ mensaje: 'Contraseña actualizada correctamente' });
+  } catch (err) {
+    console.error('Error al cambiar contraseña:', err);
+    res.status(500).json({ error: 'Error al cambiar la contraseña' });
+  }
+}
+
+module.exports = { login, me, subirFotoPerfil, solicitarReset, resetearPassword, cambiarPassword };

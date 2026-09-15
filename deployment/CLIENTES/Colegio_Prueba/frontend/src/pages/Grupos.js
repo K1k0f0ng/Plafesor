@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 
-const GRADOS = ['5', '6', '7', '8', '9'];
+const GRADOS = ['5', '6', '7', '8', '9', '10', '11'];
 
 export default function Grupos() {
   const [grupos, setGrupos] = useState([]);

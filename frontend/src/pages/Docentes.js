@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
+import { exportarExcel } from '../utils/exportarExcel';
 
 export default function Docentes() {
   const [docentes, setDocentes] = useState([]);
@@ -183,7 +184,22 @@ export default function Docentes() {
 
         {/* Lista de docentes */}
         <div style={es.card}>
-          <h3 style={es.cardTitulo}>Docentes registrados ({docentes.length})</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ ...es.cardTitulo, marginBottom: 0 }}>Docentes registrados ({docentes.length})</h3>
+            <button
+              onClick={() => exportarExcel(docentes, [
+                { header: 'Nombre', campo: 'nombre' },
+                { header: 'Correo', campo: 'email' },
+                { header: 'Director de grupo', valor: d => d.nombre_grupo_dirigido ? `${d.grado_grupo_dirigido}° ${d.nombre_grupo_dirigido}` : '' },
+                { header: 'Estado', valor: d => d.activo ? 'Activo' : 'Inactivo' },
+              ], 'docentes_playfesor.xlsx', 'Docentes')}
+              disabled={docentes.length === 0}
+              style={es.btnExportar}
+            >
+              Exportar a Excel
+            </button>
+          </div>
+          <div style={{ marginBottom: '16px' }} />
           {cargando ? <p style={es.textoGris}>Cargando...</p> : docentes.length === 0 ? (
             <p style={es.textoGris}>No hay docentes registrados.</p>
           ) : (
@@ -301,6 +317,7 @@ const es = {
   input: { flex: 1, minWidth: '160px', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e8e8e8', fontSize: '14px', fontFamily: 'inherit', outline: 'none' },
   select: { flex: 1, minWidth: '160px', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e8e8e8', fontSize: '14px', fontFamily: 'inherit', outline: 'none', background: '#fff' },
   btnPrimario: { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  btnExportar: { background: '#f0f7f0', border: '1px solid #c5e1c5', color: '#2e7d32', borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   btnSecundario: { background: '#f5f5f5', border: '1px solid #ddd', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
   btnPeligro: { background: '#fff0f0', border: '1px solid #ffcdd2', color: '#c62828', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
   exito: { marginTop: '12px', background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', padding: '10px 14px', fontSize: '14px' },

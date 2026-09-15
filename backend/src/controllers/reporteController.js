@@ -143,9 +143,10 @@ async function resumenColegio(req, res) {
         FROM resultados_actividades
         GROUP BY actividad_id, estudiante_id
       ) ra ON ra.actividad_id = a.id
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
       WHERE g.colegio_id = ? AND g.activo = TRUE
-      GROUP BY g.id, g.nombre, g.grado
-      ORDER BY g.grado ASC, g.nombre ASC
+      GROUP BY g.id, g.nombre, g.grado, ga.orden
+      ORDER BY ga.orden ASC, g.nombre ASC
     `, queryParams);
 
     // Comparativo real "vs. mes anterior" — solo se registra sobre la vista
@@ -406,14 +407,15 @@ async function metricasColegio(req, res) {
         JOIN actividades a ON a.id = ra.actividad_id AND a.activa = TRUE ${pCond}
         JOIN grupos g ON g.id = a.grupo_id
         JOIN materias m ON m.id = a.materia_id
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
         WHERE g.colegio_id = ?
           AND ra.id = (
             SELECT ra2.id FROM resultados_actividades ra2
             WHERE ra2.estudiante_id = ra.estudiante_id AND ra2.actividad_id = ra.actividad_id
             ORDER BY ra2.nota DESC, ra2.completada_en DESC LIMIT 1
           )
-        GROUP BY g.id, g.nombre, g.grado, m.id, m.nombre
-        ORDER BY g.grado ASC, g.nombre ASC, m.nombre ASC
+        GROUP BY g.id, g.nombre, g.grado, m.id, m.nombre, ga.orden
+        ORDER BY ga.orden ASC, g.nombre ASC, m.nombre ASC
       `, p ? [p, cid] : [cid]),
 
       // 6. Tasa de asistencia últimos 30 días
@@ -599,9 +601,10 @@ async function comparativasPeriodos(req, res) {
         JOIN estudiante_grupos  eg ON eg.grupo_id = g.id
         LEFT JOIN (${MEJOR_INTENTO}) mejor
           ON mejor.actividad_id = a.id AND mejor.estudiante_id = eg.estudiante_id
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
         WHERE g.colegio_id = ? AND a.activa = TRUE
-        GROUP BY a.periodo, g.id
-        ORDER BY g.grado ASC, g.nombre ASC, a.periodo ASC
+        GROUP BY a.periodo, g.id, ga.orden
+        ORDER BY ga.orden ASC, g.nombre ASC, a.periodo ASC
       `, [colegio_id]),
 
       // Promedio por materia × período
@@ -707,9 +710,10 @@ async function gemeloDigital(req, res) {
             ORDER BY ra2.nota DESC, ra2.completada_en DESC LIMIT 1
           )
         LEFT JOIN predicciones_riesgo pr ON pr.estudiante_id = eg.estudiante_id AND pr.grupo_id = g.id
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
         WHERE g.colegio_id = ? AND g.activo = TRUE
-        GROUP BY g.id, g.nombre, g.grado
-        ORDER BY g.grado ASC, g.nombre ASC
+        GROUP BY g.id, g.nombre, g.grado, ga.orden
+        ORDER BY ga.orden ASC, g.nombre ASC
       `, [cid]),
 
       // 3. Conteo de estudiantes por nivel de riesgo

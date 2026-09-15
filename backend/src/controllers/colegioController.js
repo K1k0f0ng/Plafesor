@@ -2,6 +2,7 @@ const db   = require('../database');
 const path = require('path');
 const fs   = require('fs');
 const multer = require('multer');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 const uploadsDir = path.join(__dirname, '../../uploads/logos');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -36,16 +37,36 @@ async function listar(req, res) {
 }
 
 // PUT /api/colegios/:id — actualiza solo si es el colegio del admin
+const DIAS_ROTACION_VALIDOS = [60, 90, 180, 365];
+
 async function actualizar(req, res) {
-  const { nombre, ciudad, lema } = req.body;
+  const { nombre, ciudad, lema, dias_rotacion_password } = req.body;
   if (parseInt(req.params.id) !== req.usuario.colegio_id) {
     return res.status(403).json({ error: 'No puedes editar otro colegio' });
   }
+
+  let diasRotacion = null;
+  if (dias_rotacion_password !== undefined && dias_rotacion_password !== null && dias_rotacion_password !== '') {
+    const n = parseInt(dias_rotacion_password);
+    if (!DIAS_ROTACION_VALIDOS.includes(n)) {
+      return res.status(400).json({ error: 'Días de rotación de contraseña inválidos' });
+    }
+    diasRotacion = n;
+  }
+
   try {
     await db.query(
-      'UPDATE colegios SET nombre = COALESCE(?, nombre), ciudad = COALESCE(?, ciudad), lema = ? WHERE id = ?',
-      [nombre || null, ciudad || null, lema || null, req.usuario.colegio_id]
+      'UPDATE colegios SET nombre = COALESCE(?, nombre), ciudad = COALESCE(?, ciudad), lema = ?, dias_rotacion_password = ? WHERE id = ?',
+      [nombre || null, ciudad || null, lema || null, diasRotacion, req.usuario.colegio_id]
     );
+
+    registrarAuditoria({
+      colegio_id: req.usuario.colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'colegio_editado', entidad: 'colegio', entidad_id: req.usuario.colegio_id,
+      detalle: { nombre, ciudad, lema },
+    });
+
     res.json({ mensaje: 'Institución actualizada' });
   } catch (err) {
     console.error('Error al actualizar colegio:', err);

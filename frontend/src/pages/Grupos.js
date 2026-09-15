@@ -3,15 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 
-const GRADOS = ['5', '6', '7', '8', '9'];
-
 export default function Grupos() {
   const [grupos, setGrupos] = useState([]);
+  const [grados, setGrados] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [form, setForm] = useState({ nombre: '', grado: '6', ano_lectivo: 2025 });
+  const [form, setForm] = useState({ nombre: '', grado: '', ano_lectivo: 2025 });
+
+  // Nombre a mostrar para un código de grado (ej. '6' → "Sexto"); si el
+  // catálogo aún no cargó, muestra el código tal cual como respaldo.
+  function nombreGrado(codigo) {
+    return grados.find(g => g.codigo === codigo)?.nombre || codigo;
+  }
 
   const [grupoAbierto, setGrupoAbierto] = useState(null);
   const [estudiantesGrupo, setEstudiantesGrupo] = useState([]);
@@ -23,8 +28,14 @@ export default function Grupos() {
 
   async function cargar() {
     try {
-      const rGrupos = await axiosAuth.get('/api/grupos');
+      const [rGrupos, rGrados] = await Promise.all([
+        axiosAuth.get('/api/grupos'),
+        axiosAuth.get('/api/grados-academicos'),
+      ]);
       setGrupos(rGrupos.data.data);
+      const catalogo = [...rGrados.data.data].sort((a, b) => a.orden - b.orden);
+      setGrados(catalogo);
+      setForm(f => (f.grado ? f : { ...f, grado: catalogo[0]?.codigo || '' }));
     } catch {
       setError('Error al cargar los datos');
     } finally {
@@ -109,7 +120,7 @@ export default function Grupos() {
               style={es.input}
             />
             <select value={form.grado} onChange={e => setForm({ ...form, grado: e.target.value })} style={es.select}>
-              {GRADOS.map(g => <option key={g} value={g}>Grado {g}°</option>)}
+              {grados.map(g => <option key={g.codigo} value={g.codigo}>{g.nombre}</option>)}
             </select>
             <input
               type="number" placeholder="Año lectivo" min="2020" max="2035"
@@ -147,7 +158,7 @@ export default function Grupos() {
                   <React.Fragment key={g.id}>
                     <tr style={es.tr}>
                       <td style={es.td}><strong>{g.nombre}</strong></td>
-                      <td style={es.td}>{g.grado}°</td>
+                      <td style={es.td}>{nombreGrado(g.grado)}</td>
                       <td style={es.td}>{g.ano_lectivo}</td>
                       <td style={es.td}>
                         <span style={es.badgeAlumnos}>{g.total_estudiantes} alumno{g.total_estudiantes !== 1 ? 's' : ''}</span>
@@ -186,7 +197,7 @@ export default function Grupos() {
                               <>
                                 <div style={es.panelHeader}>
                                   <span style={es.panelTitulo}>
-                                    {estudiantesGrupo.length} alumno{estudiantesGrupo.length !== 1 ? 's' : ''} en el grupo {g.grado}° {g.nombre}
+                                    {estudiantesGrupo.length} alumno{estudiantesGrupo.length !== 1 ? 's' : ''} en el grupo {nombreGrado(g.grado)} {g.nombre}
                                   </span>
                                   <button onClick={() => navigate('/estudiantes')} style={es.btnLink}>
                                     + Agregar alumno

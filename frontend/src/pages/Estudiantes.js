@@ -6,6 +6,7 @@ import axiosAuth from '../config/axios';
 import { Avatar, FichaBasicaContenido } from '../components/FichaEstudiante';
 import { FichaMedicaEditor } from '../components/FichaMedica';
 import { formatearApellidoPrimero } from '../utils/ordenNombre';
+import { exportarExcel } from '../utils/exportarExcel';
 
 const TIPOS_DOC_ESTUDIANTE = [
   { value: 'RC', label: 'Registro Civil de Nacimiento' },
@@ -292,6 +293,18 @@ export default function Estudiantes() {
   const [excelNombreArchivo, setExcelNombreArchivo] = useState('');
   const [excelResultado, setExcelResultado] = useState(null);
 
+  // Cargue masivo de fotos (cada archivo se llama como el número de documento)
+  const [fotosSeleccionadas, setFotosSeleccionadas] = useState([]);
+  const [subiendoFotosMasivo, setSubiendoFotosMasivo] = useState(false);
+  const [resultadoFotosMasivo, setResultadoFotosMasivo] = useState(null);
+
+  // Retiro de estudiante (motivo de retiro)
+  const [retiroEstudiante, setRetiroEstudiante] = useState(null);
+  const [motivosRetiro, setMotivosRetiro] = useState([]);
+  const [retiroMotivoId, setRetiroMotivoId] = useState('');
+  const [retiroDetalle, setRetiroDetalle] = useState('');
+  const [retirando, setRetirando] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => { cargar(); }, []);
@@ -528,19 +541,80 @@ export default function Estudiantes() {
     }
   }
 
-  async function handleDesactivar(id) {
-    if (!window.confirm('¿Desactivar este estudiante?')) return;
+  async function handleAbrirRetiro(estudiante) {
+    setRetiroEstudiante(estudiante);
+    setRetiroMotivoId('');
+    setRetiroDetalle('');
     try {
-      await axiosAuth.delete(`/api/estudiantes/${id}`);
-      await cargar();
+      const resp = await axiosAuth.get('/api/motivos-retiro');
+      setMotivosRetiro(resp.data.data);
     } catch {
-      setError('Error al desactivar el estudiante');
+      setMotivosRetiro([]);
+    }
+  }
+
+  const motivoEsOtro = motivosRetiro.find(m => m.id === parseInt(retiroMotivoId))?.nombre === 'Otro';
+
+  async function confirmarRetiro() {
+    if (!retiroEstudiante) return;
+    setRetirando(true);
+    setError('');
+    try {
+      await axiosAuth.delete(`/api/estudiantes/${retiroEstudiante.id}`, {
+        data: { motivo_id: retiroMotivoId || null, detalle: retiroDetalle },
+      });
+      setRetiroEstudiante(null);
+      await cargar();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al desactivar el estudiante');
+    } finally {
+      setRetirando(false);
     }
   }
 
   const estudiantesFiltrados = filtroGrupo
     ? estudiantes.filter(e => e.grupo_id === parseInt(filtroGrupo))
     : estudiantes;
+
+  function handleSeleccionarFotos(e) {
+    setFotosSeleccionadas(Array.from(e.target.files || []));
+    setResultadoFotosMasivo(null);
+  }
+
+  async function handleSubirFotosMasivo() {
+    if (fotosSeleccionadas.length === 0) return;
+    setSubiendoFotosMasivo(true);
+    setError('');
+    setResultadoFotosMasivo(null);
+    try {
+      const formData = new FormData();
+      fotosSeleccionadas.forEach(archivo => formData.append('fotos', archivo));
+      const resp = await axiosAuth.post('/api/estudiantes/fotos-masivo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setResultadoFotosMasivo(resp.data.data);
+      setFotosSeleccionadas([]);
+      await cargar();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al subir las fotos');
+    } finally {
+      setSubiendoFotosMasivo(false);
+    }
+  }
+
+  function handleExportar() {
+    exportarExcel(estudiantesFiltrados, [
+      { header: 'Nombre', campo: 'nombre' },
+      { header: 'Correo', campo: 'email' },
+      { header: 'Tipo de documento', campo: 'tipo_documento' },
+      { header: 'Número de documento', campo: 'numero_documento' },
+      { header: 'Grado', valor: e => e.nombre_grupo ? `${e.grado}°` : '' },
+      { header: 'Grupo', campo: 'nombre_grupo' },
+      { header: 'Acudiente(s)', campo: 'acudientes' },
+      { header: 'Requiere PIAR', valor: e => e.requiere_piar ? 'Sí' : 'No' },
+      { header: 'Estado', valor: e => e.activo ? 'Activo' : 'Inactivo' },
+    ], 'estudiantes_playfesor.xlsx', 'Estudiantes');
+  }
 
   return (
     <div style={es.pagina}>
@@ -663,6 +737,9 @@ export default function Estudiantes() {
           </button>
           <button onClick={() => setTab('excel')} style={{ ...es.tab, ...(tab === 'excel' ? es.tabActivo : {}) }}>
             Cargue masivo por Excel
+          </button>
+          <button onClick={() => setTab('fotos')} style={{ ...es.tab, ...(tab === 'fotos' ? es.tabActivo : {}) }}>
+            Cargue masivo de fotos
           </button>
         </div>
 
@@ -830,14 +907,82 @@ export default function Estudiantes() {
           </div>
         )}
 
+        {/* Cargue masivo de fotos */}
+        {tab === 'fotos' && (
+          <div style={es.card}>
+            <h3 style={es.cardTitulo}>Cargue masivo de fotos</h3>
+
+            <div style={es.pasoBox}>
+              <span style={es.pasoBadge}>1</span>
+              <div style={{ flex: 1 }}>
+                <p style={es.pasoTitulo}>Nombra cada foto con el número de documento del alumno</p>
+                <p style={es.ayudaCSV}>
+                  Ejemplo: si el documento es 1098765432, el archivo debe llamarse <strong>1098765432.jpg</strong>.
+                  Así se asigna automáticamente al alumno correcto, sin tener que subirlas una por una.
+                </p>
+              </div>
+            </div>
+
+            <div style={es.pasoBox}>
+              <span style={es.pasoBadge}>2</span>
+              <div style={{ flex: 1 }}>
+                <p style={es.pasoTitulo}>Selecciona todas las fotos (JPG, PNG o WEBP — máximo 2 MB cada una)</p>
+                <div style={es.zonaArchivo}>
+                  <input
+                    type="file" accept="image/jpeg,image/png,image/webp" multiple id="fotosMasivas"
+                    style={{ display: 'none' }}
+                    onChange={handleSeleccionarFotos}
+                  />
+                  <label htmlFor="fotosMasivas" style={es.btnSeleccionar}>
+                    Seleccionar fotos
+                  </label>
+                  {fotosSeleccionadas.length > 0 && (
+                    <span style={es.nombreArchivo}>{fotosSeleccionadas.length} foto{fotosSeleccionadas.length !== 1 ? 's' : ''} seleccionada{fotosSeleccionadas.length !== 1 ? 's' : ''}</span>
+                  )}
+                </div>
+                {fotosSeleccionadas.length > 0 && (
+                  <button
+                    onClick={handleSubirFotosMasivo}
+                    disabled={subiendoFotosMasivo}
+                    style={{ ...es.btnPrimario, marginTop: '16px' }}
+                  >
+                    {subiendoFotosMasivo ? 'Subiendo...' : `Subir ${fotosSeleccionadas.length} foto${fotosSeleccionadas.length !== 1 ? 's' : ''}`}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {resultadoFotosMasivo && (
+              <div style={(resultadoFotosMasivo.sin_coincidencia?.length ?? 0) === 0 ? es.exito : es.resultadoMixto}>
+                <strong>{resultadoFotosMasivo.asignadas} de {resultadoFotosMasivo.total} foto{resultadoFotosMasivo.total !== 1 ? 's' : ''} asignada{resultadoFotosMasivo.asignadas !== 1 ? 's' : ''} correctamente.</strong>
+                {resultadoFotosMasivo.sin_coincidencia?.length > 0 && (
+                  <div style={{ marginTop: '8px' }}>
+                    <strong>{resultadoFotosMasivo.sin_coincidencia.length} sin asignar:</strong>
+                    {resultadoFotosMasivo.sin_coincidencia.map((f, i) => (
+                      <div key={i} style={{ fontSize: '13px', marginTop: '4px' }}>• {f.archivo}: {f.motivo}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {error && <div style={es.errorBox}>{error}</div>}
+          </div>
+        )}
+
         {/* Lista de estudiantes */}
         <div style={es.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <h3 style={{ ...es.cardTitulo, marginBottom: 0 }}>Estudiantes registrados ({estudiantesFiltrados.length})</h3>
-            <select value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)} style={{ ...es.select, maxWidth: '200px' }}>
-              <option value="">Todos los grupos</option>
-              {grupos.map(g => <option key={g.id} value={g.id}>{g.grado}° {g.nombre}</option>)}
-            </select>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <select value={filtroGrupo} onChange={e => setFiltroGrupo(e.target.value)} style={{ ...es.select, maxWidth: '200px' }}>
+                <option value="">Todos los grupos</option>
+                {grupos.map(g => <option key={g.id} value={g.id}>{g.grado}° {g.nombre}</option>)}
+              </select>
+              <button onClick={handleExportar} disabled={estudiantesFiltrados.length === 0} style={es.btnExportar}>
+                Exportar a Excel
+              </button>
+            </div>
           </div>
 
           {cargando ? <p style={es.textoGris}>Cargando...</p> : estudiantesFiltrados.length === 0 ? (
@@ -875,7 +1020,9 @@ export default function Estudiantes() {
                         <button onClick={() => abrirFicha(e)} style={es.btnFicha}>Ver ficha</button>
                         <button onClick={() => abrirFichaMedica(e)} style={es.btnFicha}>Ficha médica</button>
                         <button onClick={() => abrirEdicion(e)} style={es.btnEditar}>Editar</button>
-                        <button onClick={() => handleDesactivar(e.id)} style={es.btnPeligro}>Desactivar</button>
+                        {e.activo && (
+                          <button onClick={() => handleAbrirRetiro(e)} style={es.btnPeligro}>Desactivar</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -885,6 +1032,57 @@ export default function Estudiantes() {
           )}
         </div>
       </div>
+
+      {/* Modal — retirar estudiante con motivo */}
+      {retiroEstudiante && (
+        <>
+          <div onClick={() => !retirando && setRetiroEstudiante(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)', zIndex: 200 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '420px', maxWidth: '92vw', background: '#fff', borderRadius: '16px', boxShadow: '0 12px 40px rgba(0,0,0,0.25)', zIndex: 201, overflow: 'hidden' }}>
+            <div style={{ padding: '18px 22px', background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff' }}>
+              <div style={{ fontWeight: '800', fontSize: '15px' }}>Retirar estudiante</div>
+              <div style={{ fontSize: '12.5px', opacity: 0.85, marginTop: '2px' }}>{formatearApellidoPrimero(retiroEstudiante.nombre)}</div>
+            </div>
+            <div style={{ padding: '20px 22px' }}>
+              <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Motivo del retiro</label>
+              <select
+                value={retiroMotivoId}
+                onChange={e => setRetiroMotivoId(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #e0e0e0', fontSize: '13.5px', fontFamily: 'inherit', marginBottom: '14px', boxSizing: 'border-box' }}
+              >
+                <option value="">Sin especificar</option>
+                {motivosRetiro.map(m => (
+                  <option key={m.id} value={m.id}>{m.nombre}</option>
+                ))}
+              </select>
+
+              {(motivoEsOtro || !retiroMotivoId) && (
+                <>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>
+                    {motivoEsOtro ? 'Especifica el motivo' : 'Observación (opcional)'}
+                  </label>
+                  <input
+                    value={retiroDetalle}
+                    onChange={e => setRetiroDetalle(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1.5px solid #e0e0e0', fontSize: '13.5px', fontFamily: 'inherit', marginBottom: '6px', boxSizing: 'border-box' }}
+                  />
+                </>
+              )}
+
+              <p style={{ fontSize: '12px', color: '#888', margin: '10px 0 0' }}>
+                El estudiante quedará inactivo y dejará de aparecer en los listados y grupos activos. Esta acción queda registrada en la auditoría.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', padding: '0 22px 20px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setRetiroEstudiante(null)} disabled={retirando} style={{ background: '#f0f2f5', color: '#666', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarRetiro} disabled={retirando} style={{ background: '#c62828', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', opacity: retirando ? 0.6 : 1 }}>
+                {retirando ? 'Retirando...' : 'Confirmar retiro'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -906,6 +1104,7 @@ const es = {
   miniLabel: { fontSize: '11px', color: '#aaa', fontWeight: '600' },
   btnPrimario: { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   btnPeligro: { background: '#fff0f0', border: '1px solid #ffcdd2', color: '#c62828', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
+  btnExportar: { background: '#f0f7f0', border: '1px solid #c5e1c5', color: '#2e7d32', borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   exito: { marginTop: '16px', background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', padding: '12px 16px', fontSize: '14px' },
   errorBox: { marginTop: '12px', background: '#fff0f0', color: '#c62828', borderRadius: '8px', padding: '10px 14px', fontSize: '14px' },
   resultadoMixto: { marginTop: '16px', background: '#fff8e1', color: '#e65100', borderRadius: '8px', padding: '12px 16px', fontSize: '14px', border: '1px solid #ffe082' },

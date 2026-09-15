@@ -23,8 +23,9 @@ async function listarGruposYMaterias(req, res) {
       FROM actividades a
       JOIN grupos   g ON g.id = a.grupo_id
       JOIN materias m ON m.id = a.materia_id
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
       WHERE g.colegio_id = ? AND a.activa = TRUE
-      ORDER BY g.grado ASC, g.nombre ASC, m.nombre ASC
+      ORDER BY ga.orden ASC, g.nombre ASC, m.nombre ASC
     `, [colegio_id]);
 
     const grupoMap = {};

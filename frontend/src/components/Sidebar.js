@@ -7,7 +7,7 @@ import {
   IconBarChart, IconAlertCircle, IconZap, IconFileText,
   IconEdit, IconClipboard, IconCheckSquare, IconBot, IconLogOut,
   IconCalendar, IconAccessibility, IconStar, IconMegaphone, IconInbox,
-  IconChevronRight,
+  IconChevronRight, IconClock, IconGrid, IconBell,
 } from './Icons';
 import NotificacionBell from './NotificacionBell';
 
@@ -16,33 +16,50 @@ const MENU = {
     { tipo: 'link', Icono: IconHome,       label: 'Panel',        ruta: '/dashboard' },
     { tipo: 'seccion', label: 'Institución' },
     { tipo: 'link', Icono: IconSchool,     label: 'Colegios',     ruta: '/colegios' },
+    { tipo: 'link', Icono: IconGrid,       label: 'Grados Académicos', ruta: '/grados-academicos' },
     { tipo: 'link', Icono: IconBookOpen,   label: 'Grupos',       ruta: '/grupos' },
     { tipo: 'link', Icono: IconUsers,      label: 'Docentes',     ruta: '/docentes' },
     { tipo: 'link', Icono: IconUser,       label: 'Estudiantes',  ruta: '/estudiantes' },
+    { tipo: 'link', Icono: IconLogOut,     label: 'Motivos de Retiro', ruta: '/motivos-retiro' },
     { tipo: 'link', Icono: IconFileText,   label: 'Materias',     ruta: '/materias' },
     { tipo: 'link', Icono: IconUsers,      label: 'Padres',       ruta: '/padres' },
     { tipo: 'seccion', label: 'Comunicación' },
     { tipo: 'link', Icono: IconInbox,      label: 'Mensajería',      ruta: '/mensajeria', badge: 'mensajes' },
-    { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',      ruta: '/citaciones' },
-    { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos',ruta: '/mensajes-masivos' },
+    { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',      ruta: '/citaciones', modulo: 'citaciones' },
+    { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos',ruta: '/mensajes-masivos', modulo: 'mensajes_masivos' },
+    { tipo: 'seccion', label: 'Reportes' },
+    { tipo: 'link', Icono: IconClock,      label: 'Auditoría',      ruta: '/auditoria' },
+    { tipo: 'link', Icono: IconClipboard,  label: 'Cargue de Histórico', ruta: '/cargue-historico' },
+    { tipo: 'link', Icono: IconCalendar,   label: 'Cierre de Año Lectivo', ruta: '/cierre-anio-lectivo' },
+    { tipo: 'seccion', label: 'Cuenta' },
+    { tipo: 'link', Icono: IconGrid,       label: 'Módulos del Portal', ruta: '/modulos-portal' },
+    { tipo: 'link', Icono: IconBell,       label: 'Preferencias de Notificación', ruta: '/preferencias-notificacion' },
   ],
   director: [
     { tipo: 'link', Icono: IconHome,       label: 'Panel',           ruta: '/dashboard-director' },
     { tipo: 'seccion', label: 'Inteligencia Institucional' },
     { tipo: 'link', Icono: IconBarChart,   label: 'Métricas',        ruta: '/metricas' },
-    { tipo: 'link', Icono: IconAlertCircle,label: 'Motor de Riesgo', ruta: '/riesgo', badge: 'riesgo' },
-    { tipo: 'link', Icono: IconZap,        label: 'Copiloto IA',     ruta: '/copiloto' },
-    { tipo: 'link', Icono: IconFileText,   label: 'Observador',      ruta: '/observador' },
-    { tipo: 'link', Icono: IconAccessibility, label: 'PIAR',         ruta: '/piar' },
+    { tipo: 'link', Icono: IconAlertCircle,label: 'Motor de Riesgo', ruta: '/riesgo', badge: 'riesgo', modulo: 'motor_riesgo' },
+    { tipo: 'link', Icono: IconZap,        label: 'Copiloto IA',     ruta: '/copiloto', modulo: 'copiloto_ia' },
+    { tipo: 'link', Icono: IconFileText,   label: 'Observador',      ruta: '/observador', modulo: 'observador_academico' },
+    { tipo: 'link', Icono: IconAccessibility, label: 'PIAR',         ruta: '/piar', modulo: 'piar' },
     { tipo: 'seccion', label: 'Equipo Docente' },
-    { tipo: 'link', Icono: IconStar,       label: 'Evaluación Docente', ruta: '/evaluacion-docentes' },
+    { tipo: 'link', Icono: IconStar,       label: 'Evaluación Docente', ruta: '/evaluacion-docentes', modulo: 'evaluacion_docentes' },
     { tipo: 'seccion', label: 'Comunicación' },
     { tipo: 'link', Icono: IconInbox,      label: 'Mensajería',      ruta: '/mensajeria', badge: 'mensajes' },
-    { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',      ruta: '/citaciones' },
-    { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos',ruta: '/mensajes-masivos' },
+    { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',      ruta: '/citaciones', modulo: 'citaciones' },
+    { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos',ruta: '/mensajes-masivos', modulo: 'mensajes_masivos' },
     { tipo: 'seccion', label: 'Reportes' },
     { tipo: 'link', Icono: IconFileText,   label: 'Boletines',      ruta: '/boletin' },
     { tipo: 'link', Icono: IconBookOpen,   label: 'Libro de Notas', ruta: '/libro-notas' },
+    { tipo: 'link', Icono: IconClock,      label: 'Auditoría',      ruta: '/auditoria' },
+    { tipo: 'link', Icono: IconClipboard,  label: 'Cargue de Histórico', ruta: '/cargue-historico' },
+    { tipo: 'link', Icono: IconCalendar,   label: 'Cierre de Año Lectivo', ruta: '/cierre-anio-lectivo' },
+    { tipo: 'link', Icono: IconGrid,       label: 'Grados Académicos', ruta: '/grados-academicos' },
+    { tipo: 'link', Icono: IconLogOut,     label: 'Motivos de Retiro', ruta: '/motivos-retiro' },
+    { tipo: 'seccion', label: 'Cuenta' },
+    { tipo: 'link', Icono: IconGrid,       label: 'Módulos del Portal', ruta: '/modulos-portal' },
+    { tipo: 'link', Icono: IconBell,       label: 'Preferencias de Notificación', ruta: '/preferencias-notificacion' },
   ],
   docente: [
     { tipo: 'link', Icono: IconHome,       label: 'Mi Panel',        ruta: '/dashboard-docente' },
@@ -56,22 +73,26 @@ const MENU = {
     { tipo: 'seccion', label: 'Reportes' },
     { tipo: 'link', Icono: IconFileText,   label: 'Boletines',      ruta: '/boletin' },
     { tipo: 'link', Icono: IconBookOpen,   label: 'Libro de Notas', ruta: '/libro-notas' },
-    { tipo: 'link', Icono: IconAccessibility, label: 'PIAR',         ruta: '/piar' },
+    { tipo: 'link', Icono: IconAccessibility, label: 'PIAR',         ruta: '/piar', modulo: 'piar' },
     { tipo: 'seccion', label: 'Comunicación' },
     { tipo: 'link', Icono: IconInbox,      label: 'Mensajería',      ruta: '/mensajeria', badge: 'mensajes' },
     // Los dos siguientes solo se muestran si el docente dirige un grupo —
     // se filtran en tiempoReal más abajo con `soloDirectorGrupo: true`
-    { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',       ruta: '/citaciones',       soloDirectorGrupo: true },
-    { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos', ruta: '/mensajes-masivos', soloDirectorGrupo: true },
+    { tipo: 'link', Icono: IconCalendar,   label: 'Citaciones',       ruta: '/citaciones',       soloDirectorGrupo: true, modulo: 'citaciones' },
+    { tipo: 'link', Icono: IconMegaphone,  label: 'Mensajes masivos', ruta: '/mensajes-masivos', soloDirectorGrupo: true, modulo: 'mensajes_masivos' },
+    { tipo: 'seccion', label: 'Cuenta' },
+    { tipo: 'link', Icono: IconBell,       label: 'Preferencias de Notificación', ruta: '/preferencias-notificacion' },
   ],
   estudiante: [
     { tipo: 'link', Icono: IconBookOpen,   label: 'Mis Materias', ruta: '/dashboard-estudiante' },
-    { tipo: 'link', Icono: IconBot,        label: 'Tutor IA',     ruta: '/tutor' },
+    { tipo: 'link', Icono: IconBot,        label: 'Tutor IA',     ruta: '/tutor', modulo: 'tutor_ia' },
   ],
   padre: [
     { tipo: 'link', Icono: IconUser,       label: 'Mi Hijo/a',  ruta: '/dashboard-padre' },
     { tipo: 'seccion', label: 'Comunicación' },
     { tipo: 'link', Icono: IconInbox,      label: 'Mensajería', ruta: '/mensajeria', badge: 'mensajes' },
+    { tipo: 'seccion', label: 'Cuenta' },
+    { tipo: 'link', Icono: IconBell,       label: 'Preferencias de Notificación', ruta: '/preferencias-notificacion' },
   ],
 };
 
@@ -84,11 +105,18 @@ const ROL_ETIQUETA = {
 };
 
 export default function Sidebar({ variante, colapsado = false }) {
-  const { usuario, cerrarSesion } = useAuth();
+  const { usuario, cerrarSesion, modulosDesactivados } = useAuth();
   const navigate  = useNavigate();
   const location  = useLocation();
   const menuRol   = MENU[usuario?.rol] || [];
-  const menu      = usuario?.grupo_dirigido_id ? menuRol : menuRol.filter(item => !item.soloDirectorGrupo);
+  const menuFiltrado = menuRol
+    .filter(item => usuario?.grupo_dirigido_id || !item.soloDirectorGrupo)
+    .filter(item => !item.modulo || !modulosDesactivados?.includes(item.modulo));
+  // Evita dejar un título de sección "huérfano" cuando todos sus enlaces
+  // quedaron ocultos por un módulo desactivado.
+  const menu = menuFiltrado.filter((item, i) =>
+    item.tipo !== 'seccion' || (menuFiltrado[i + 1] && menuFiltrado[i + 1].tipo !== 'seccion')
+  );
   const inicial   = usuario?.nombre?.charAt(0)?.toUpperCase() || '?';
   const esDirector = variante === 'director';
   const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);

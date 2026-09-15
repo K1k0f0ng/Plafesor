@@ -8,7 +8,7 @@ import { API } from '../config/api';
 export default function Colegios() {
   const [colegio, setColegio]     = useState(null);
   const [cargando, setCargando]   = useState(true);
-  const [form, setForm]           = useState({ nombre: '', ciudad: '', lema: '' });
+  const [form, setForm]           = useState({ nombre: '', ciudad: '', lema: '', dias_rotacion_password: '' });
   const [editando, setEditando]   = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
@@ -22,7 +22,10 @@ export default function Colegios() {
       .then(r => {
         const datos = r.data.data?.[0] || null;
         setColegio(datos);
-        if (datos) setForm({ nombre: datos.nombre || '', ciudad: datos.ciudad || '', lema: datos.lema || '' });
+        if (datos) setForm({
+          nombre: datos.nombre || '', ciudad: datos.ciudad || '', lema: datos.lema || '',
+          dias_rotacion_password: datos.dias_rotacion_password || '',
+        });
       })
       .catch(() => setError('No se pudo cargar la información de la institución'))
       .finally(() => setCargando(false));
@@ -151,6 +154,21 @@ export default function Colegios() {
                   maxLength={255}
                 />
                 <p style={es.ayuda}>Se muestra debajo del nombre del colegio en el panel del director.</p>
+              </div>
+              <div style={es.formGrupo}>
+                <label style={es.label}>Rotación de contraseña</label>
+                <select
+                  style={es.input}
+                  value={form.dias_rotacion_password}
+                  onChange={e => setForm({ ...form, dias_rotacion_password: e.target.value })}
+                >
+                  <option value="">Desactivada</option>
+                  <option value="60">Cada 60 días</option>
+                  <option value="90">Cada 90 días</option>
+                  <option value="180">Cada 180 días</option>
+                  <option value="365">Cada 365 días</option>
+                </select>
+                <p style={es.ayuda}>Aplica solo al personal (director, administradores y docentes). Cuando se cumpla el plazo, deberán cambiar su contraseña al iniciar sesión.</p>
               </div>
               <div style={es.formBtns}>
                 <button type="button" onClick={() => { setEditando(false); setError(''); }} style={es.btnCancelar}>

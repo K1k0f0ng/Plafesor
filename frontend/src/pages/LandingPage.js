@@ -582,19 +582,10 @@ const aiCapabilities = [
 ];
 
 /* ---------------------------------------------------------------
-   Hero — "tablero vivo": datos de ejemplo del panel institucional
-   (vista ilustrativa del producto, sin fotos ni mockups externos)
+   Hero — captura real del panel del Director, enmarcada como una
+   ventana de producto y con la misma animación viva que tenía la
+   versión ilustrada anterior (pulso, barrido de luz, señal en vivo).
 --------------------------------------------------------------- */
-
-const heroGradeRisk = [
-  { g: '5°', p: '3.9', s: 'ok' },
-  { g: '6°', p: '3.1', s: 'warn' },
-  { g: '7°', p: '2.7', s: 'crit' },
-  { g: '8°', p: '3.7', s: 'ok' },
-  { g: '9°', p: '4.0', s: 'ok' },
-  { g: '10°', p: '2.9', s: 'crit' },
-  { g: '11°', p: '3.4', s: 'warn' },
-];
 
 const heroSignals = [
   '03:14 AM · motor de riesgo ejecutado sobre 3 variables',
@@ -649,46 +640,34 @@ function useTypewriter(lines, active) {
   return active ? lines[idx % lines.length].slice(0, char) : lines[0];
 }
 
-/* Panel del producto dibujado por completo con HTML/CSS: es el producto
-   funcionando lo que se ve en el primer pantallazo, no una foto. */
-function HeroLivePanel() {
+/* Captura real del panel del Director, enmarcada como una ventana de
+   producto. La señal inferior sigue "en vivo" con el mismo typewriter
+   que tenía el panel ilustrado, para no perder el movimiento del hero. */
+function HeroProductShot() {
   const reduced = usePrefersReducedMotion();
-  const [panelRef, panelInView] = useInView(0.25);
-  const alerta = useTypewriter(heroSignals, panelInView && !reduced);
+  const [shotRef, shotInView] = useInView(0.25);
+  const senal = useTypewriter(heroSignals, shotInView && !reduced);
 
   return (
-    <div className="hero-panel" ref={panelRef}>
-      <div className="hero-panel-head">
-        <span className="hero-panel-folio">Panel institucional · vista de ejemplo</span>
-        <span className="hero-panel-badge"><i className="hero-live-dot" aria-hidden="true" />03:14 AM</span>
+    <div className="hero-shot" ref={shotRef}>
+      <div className="hero-shot-bar">
+        <span className="hero-shot-dots" aria-hidden="true"><i /><i /><i /></span>
+        <span className="hero-shot-url">playfesor.co · panel del director</span>
+        <span className="hero-shot-badge"><i className="hero-live-dot" aria-hidden="true" />En vivo</span>
       </div>
 
-      <div className="hero-panel-label">Riesgo académico por grado</div>
-      <div className="hero-heatmap">
-        {heroGradeRisk.map((g, i) => (
-          <div className={`hero-heatmap-cell is-${g.s}`} style={{ animationDelay: `${i * 90}ms` }} key={g.g}>
-            <span className="hero-heatmap-g">{g.g}</span>
-            <span className="hero-heatmap-p">{g.p}</span>
-          </div>
-        ))}
-      </div>
-      <div className="hero-heatmap-legend">
-        <span className="is-ok">Bajo</span>
-        <span className="is-warn">Medio</span>
-        <span className="is-crit">Alto / crítico</span>
+      <div className="hero-shot-media">
+        <img
+          className="hero-shot-img"
+          src="/hero-dashboard.jpg"
+          alt="Panel del director en Playfesor: métricas del colegio, motor de riesgo y rendimiento por grupo"
+          loading="eager"
+        />
+        <span className="hero-shot-sheen" aria-hidden="true" />
       </div>
 
-      <div className="hero-panel-label">Copiloto de rectoría</div>
-      <div className="hero-copilot">
-        <div className="hero-copilot-q">¿Qué grado necesita atención esta semana?</div>
-        <div className="hero-copilot-a">
-          <strong>7°C y 10°A.</strong> Física concentra el 34 % de la reprobación y 12 de 28 estudiantes están por debajo de 3.0.
-        </div>
-      </div>
-
-      <div className="hero-panel-foot">
-        <span className="hero-panel-alert">{alerta}<i className="hero-caret" aria-hidden="true" /></span>
-        <span className="hero-panel-note">3 variables cruzadas cada noche · notas 40 % · ausencias 30 % · pendientes 30 %</span>
+      <div className="hero-shot-signal">
+        <span className="hero-shot-signal-text">{senal}<i className="hero-caret" aria-hidden="true" /></span>
       </div>
     </div>
   );
@@ -857,7 +836,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <HeroLivePanel />
+              <HeroProductShot />
             </div>
           </div>
 
@@ -1383,66 +1362,51 @@ const styles = `
   .hero-trust span { display: inline-flex; align-items: center; gap: 7px; }
   .hero-trust span::before { content: '✓'; color: var(--brand-blue); font-weight: 700; font-size: 0.72rem; }
 
-  /* Panel del hero: el producto dibujado con HTML/CSS, sin fotos */
-  .hero-panel {
-    position: relative; padding: 22px; border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    background: linear-gradient(180deg, #ffffff 0%, #f6f9fd 100%);
+  /* Panel del hero: captura real del producto, enmarcada como ventana */
+  .hero-shot {
+    position: relative; border-radius: var(--radius-lg); overflow: hidden;
+    border: 1px solid var(--border); background: #fff;
     box-shadow: 0 30px 70px rgba(2,24,63,0.13);
-    animation: heroRise 0.9s ease 0.16s both;
+    animation: heroRise 0.9s ease 0.16s both, heroFloat 7s ease-in-out 1.4s infinite alternate;
   }
-  .hero-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 13px; border-bottom: 1px solid var(--border); }
-  .hero-panel-folio { font-family: monospace; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-fg); }
-  .hero-panel-badge { display: inline-flex; align-items: center; gap: 7px; font-family: monospace; font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--brand-blue); white-space: nowrap; }
+  @keyframes heroFloat { from { transform: translateY(0); } to { transform: translateY(-8px); } }
+
+  .hero-shot-bar {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    border-bottom: 1px solid var(--border); background: #f6f8fc;
+  }
+  .hero-shot-dots { display: inline-flex; gap: 6px; flex-shrink: 0; }
+  .hero-shot-dots i { display: block; width: 9px; height: 9px; border-radius: 50%; }
+  .hero-shot-dots i:nth-child(1) { background: #f0645c; }
+  .hero-shot-dots i:nth-child(2) { background: #f5bd4f; }
+  .hero-shot-dots i:nth-child(3) { background: #34c759; }
+  .hero-shot-url {
+    flex: 1; min-width: 0; font-family: monospace; font-size: 0.66rem; color: var(--muted-fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hero-shot-badge {
+    display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+    font-family: monospace; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--brand-blue); white-space: nowrap;
+  }
   .hero-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand-blue); animation: heroPulse 2.6s ease-out infinite; }
 
-  .hero-panel-label { margin: 18px 0 10px; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink); }
-
-  .hero-heatmap { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; overflow: hidden; }
-  .hero-heatmap-cell {
-    border-radius: 9px; padding: 9px 4px; text-align: center;
-    border: 1px solid var(--border); background: var(--card);
-    opacity: 0; animation: heroCell 0.5s ease forwards;
-  }
-  @keyframes heroCell { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
-  .hero-heatmap-g { display: block; font-size: 0.62rem; font-weight: 600; color: var(--muted-fg); }
-  .hero-heatmap-p { display: block; margin-top: 4px; font-size: 0.88rem; font-weight: 700; color: var(--ink); }
-  .hero-heatmap-cell.is-ok { background: rgba(34,197,94,0.08); box-shadow: inset 0 0 0 1px rgba(34,197,94,0.32); }
-  .hero-heatmap-cell.is-ok .hero-heatmap-p { color: #16a34a; }
-  .hero-heatmap-cell.is-warn { background: rgba(217,119,6,0.09); box-shadow: inset 0 0 0 1px rgba(217,119,6,0.34); }
-  .hero-heatmap-cell.is-warn .hero-heatmap-p { color: #d97706; }
-  .hero-heatmap-cell.is-crit { background: rgba(220,38,38,0.10); box-shadow: inset 0 0 0 1px rgba(220,38,38,0.36); }
-  .hero-heatmap-cell.is-crit .hero-heatmap-p { color: #dc2626; }
-  .hero-heatmap::after {
-    content: ''; position: absolute; top: 0; bottom: 0; width: 90px; pointer-events: none;
-    background: linear-gradient(90deg, transparent, rgba(41,129,251,0.16), transparent);
-    animation: heroScan 6s ease-in-out infinite;
+  .hero-shot-media { position: relative; overflow: hidden; line-height: 0; }
+  .hero-shot-img { display: block; width: 100%; height: auto; }
+  .hero-shot-sheen {
+    position: absolute; top: 0; bottom: 0; width: 90px; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: heroScan 6.5s ease-in-out 1s infinite;
   }
   @keyframes heroScan { 0% { left: -22%; } 100% { left: 108%; } }
 
-  .hero-heatmap-legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.62rem; }
-  .hero-heatmap-legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .hero-heatmap-legend span::before { content: ''; width: 8px; height: 8px; border-radius: 3px; background: currentColor; }
-  .hero-heatmap-legend .is-ok { color: #16a34a; }
-  .hero-heatmap-legend .is-warn { color: #d97706; }
-  .hero-heatmap-legend .is-crit { color: #dc2626; }
-
-  .hero-copilot { display: flex; flex-direction: column; gap: 8px; }
-  .hero-copilot-q {
-    align-self: flex-end; max-width: 84%; padding: 9px 13px; font-size: 0.76rem; line-height: 1.45;
-    border-radius: 14px 14px 3px 14px; background: var(--brand-navy); color: #fff;
+  .hero-shot-signal {
+    padding: 11px 14px; border-top: 1px dashed var(--border);
+    min-height: 17px; display: flex; align-items: center;
   }
-  .hero-copilot-a {
-    max-width: 94%; padding: 10px 13px; font-size: 0.76rem; line-height: 1.5; color: var(--muted-fg);
-    border-radius: 14px 14px 14px 3px; border: 1px solid var(--border); background: var(--card);
-  }
-  .hero-copilot-a strong { color: var(--ink); }
-
-  .hero-panel-foot { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 8px; }
-  .hero-panel-alert { display: inline-flex; align-items: center; min-height: 17px; font-family: monospace; font-size: 0.68rem; color: var(--brand-blue); }
+  .hero-shot-signal-text { display: inline-flex; align-items: center; font-family: monospace; font-size: 0.68rem; color: var(--brand-blue); }
   .hero-caret { display: inline-block; width: 7px; height: 13px; margin-left: 4px; background: var(--brand-blue); animation: heroCaret 1s steps(2, start) infinite; }
   @keyframes heroCaret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-  .hero-panel-note { font-size: 0.64rem; line-height: 1.5; color: #8d97a5; }
 
   /* Cinta de señales del sistema, debajo del hero (reemplaza la franja de fotos) */
   .hero-ticker {
@@ -1800,8 +1764,8 @@ const styles = `
     .hero-capture { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; border-radius: 20px; }
     .hero-capture-input { padding: 6px 4px; text-align: center; }
     .hero-capture-btn { width: 100%; }
-    .hero-panel { padding: 18px; }
-    .hero-heatmap { grid-template-columns: repeat(4, 1fr); }
+    .hero-shot-bar { padding: 9px 12px; }
+    .hero-shot-url { display: none; }
     .hero-ticker { margin-top: 46px; }
     .hero-ticker-track { animation-duration: 38s; }
     .hero-ticker-item { padding: 0 18px; font-size: 0.66rem; }
@@ -1810,11 +1774,11 @@ const styles = `
   /* Accesibilidad: si el visitante pidió menos movimiento, el hero se queda quieto */
   @media (prefers-reduced-motion: reduce) {
     .hero-category, .hero-title, .hero-lead, .hero-capture, .hero-capture-note,
-    .hero-actions, .hero-trust, .hero-panel {
+    .hero-actions, .hero-trust, .hero-shot {
       animation: none !important; opacity: 1 !important; transform: none !important;
     }
-    .hero-category-dot, .hero-live-dot, .hero-caret, .hero-heatmap::after, .hero-heatmap-cell { animation: none !important; }
-    .hero-heatmap-cell { opacity: 1 !important; transform: none !important; }
+    .hero-category-dot, .hero-live-dot, .hero-caret, .hero-shot-sheen { animation: none !important; }
+    .hero-shot-sheen { display: none !important; }
     .hero-ticker-track { animation: none !important; }
     .hero-spotlight { display: none; }
   }

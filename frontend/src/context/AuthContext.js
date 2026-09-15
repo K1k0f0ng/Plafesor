@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
+import axiosAuth from '../config/axios';
 
 const AuthContext = createContext(null);
 
@@ -15,13 +16,26 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [token, setToken] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [modulosDesactivados, setModulosDesactivados] = useState([]);
   const intervaloRef = useRef(null);
+
+  // Qué módulos opcionales apagó el colegio — se usa para ocultar menú y
+  // bloquear rutas en el frontend (el backend es quien realmente lo exige).
+  const cargarModulos = useCallback(async () => {
+    try {
+      const resp = await axiosAuth.get('/api/colegio-modulos/activos');
+      setModulosDesactivados(resp.data.data?.desactivados || []);
+    } catch {
+      setModulosDesactivados([]);
+    }
+  }, []);
 
   function cerrarSesion() {
     localStorage.removeItem('playfesor_token');
     localStorage.removeItem('playfesor_usuario');
     setToken(null);
     setUsuario(null);
+    setModulosDesactivados([]);
     if (intervaloRef.current) clearInterval(intervaloRef.current);
   }
 
@@ -46,6 +60,7 @@ export function AuthProvider({ children }) {
           setToken(tokenGuardado);
           setUsuario(JSON.parse(usuarioGuardado));
           iniciarVigilancia(tokenGuardado);
+          cargarModulos();
         } catch {
           localStorage.clear();
         }
@@ -53,7 +68,7 @@ export function AuthProvider({ children }) {
     }
     setCargando(false);
     return () => { if (intervaloRef.current) clearInterval(intervaloRef.current); };
-  }, []);
+  }, [cargarModulos]);
 
   function iniciarSesion(nuevoToken, datosUsuario) {
     localStorage.setItem('playfesor_token', nuevoToken);
@@ -61,6 +76,7 @@ export function AuthProvider({ children }) {
     setToken(nuevoToken);
     setUsuario(datosUsuario);
     iniciarVigilancia(nuevoToken);
+    cargarModulos();
   }
 
   // Actualiza campos puntuales del usuario en sesión (ej. tras subir una foto)
@@ -74,7 +90,10 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ usuario, token, iniciarSesion, actualizarUsuario, cerrarSesion, cargando }}>
+    <AuthContext.Provider value={{
+      usuario, token, iniciarSesion, actualizarUsuario, cerrarSesion, cargando,
+      modulosDesactivados, refrescarModulos: cargarModulos,
+    }}>
       {children}
     </AuthContext.Provider>
   );

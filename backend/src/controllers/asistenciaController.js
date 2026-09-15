@@ -148,9 +148,10 @@ async function resumenHoyDocente(req, res) {
       JOIN grupos g ON g.id = dgm.grupo_id
       LEFT JOIN asistencias a
         ON a.grupo_id = g.id AND a.fecha = CURDATE()
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
       WHERE dgm.docente_id = ?
-      GROUP BY g.id, g.nombre, g.grado
-      ORDER BY lista_pasada ASC, g.grado ASC, g.nombre ASC
+      GROUP BY g.id, g.nombre, g.grado, ga.orden
+      ORDER BY lista_pasada ASC, ga.orden ASC, g.nombre ASC
     `, [docente_id]);
 
     // Deduplicar grupos (un docente puede tener varias materias en el mismo grupo)

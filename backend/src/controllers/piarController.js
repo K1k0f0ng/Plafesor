@@ -22,10 +22,11 @@ async function listarPorColegio(req, res) {
       FROM usuarios u
       LEFT JOIN estudiante_grupos eg ON eg.estudiante_id = u.id
       LEFT JOIN grupos g ON g.id = eg.grupo_id
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
       LEFT JOIN piar pi ON pi.estudiante_id = u.id AND pi.anio_escolar = ?
       WHERE u.rol = 'estudiante' AND u.requiere_piar = TRUE
         AND (u.colegio_id = ? OR g.colegio_id = ?)
-      ORDER BY g.grado ASC, ${ordenApellido('u.nombre')} ASC
+      ORDER BY ga.orden ASC, ${ordenApellido('u.nombre')} ASC
     `, [anioEscolar, colegio_id, colegio_id]);
 
     res.json({ data: filas });

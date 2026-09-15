@@ -4,6 +4,9 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { ordenApellido } = require('../utils/ordenNombre');
+const { registrarAuditoria } = require('../utils/auditoria');
+const { obtenerAnioActivo } = require('../utils/anioLectivo');
+const { obtenerMotivos } = require('../utils/motivoRetiro');
 
 const uploadsDirEstudiantes = path.join(__dirname, '../../uploads/estudiantes');
 if (!fs.existsSync(uploadsDirEstudiantes)) fs.mkdirSync(uploadsDirEstudiantes, { recursive: true });
@@ -22,6 +25,19 @@ const uploadFoto = multer({
     else cb(new Error('Solo se permiten imágenes (jpg, png, webp)'));
   },
 }).single('foto');
+
+// Cargue masivo de fotos: cada archivo se relaciona con un estudiante por su
+// número de documento en el nombre (ej. "1098765432.jpg") — se guarda en
+// memoria primero porque el nombre final del archivo en disco depende del
+// id del estudiante que se resuelva después de emparejar.
+const uploadFotosMasivo = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 200 },
+  fileFilter: (req, file, cb) => {
+    if (/\.(jpe?g|png|webp)$/i.test(file.originalname)) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes (jpg, png, webp)'));
+  },
+}).array('fotos', 200);
 
 // Estos endpoints reciben JSON directamente (no solo desde el formulario ni
 // desde la plantilla Excel, que ya normalizan), así que se valida de nuevo
@@ -207,6 +223,14 @@ async function crear(req, res) {
     }
 
     await conn.commit();
+
+    registrarAuditoria({
+      colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'estudiante_creado', entidad: 'estudiante', entidad_id: estudianteId,
+      detalle: { nombre, email },
+    });
+
     res.status(201).json({ mensaje: 'Estudiante creado', data: { id: estudianteId, nombre, email } });
   } catch (err) {
     await conn.rollback();
@@ -334,8 +358,16 @@ async function actualizar(req, res) {
       [nombre, email, colegio_id || null, telefono_padres || null, !!requiere_piar, normalizarTipoDocumento(tipo_documento), numero_documento || null, id]
     );
 
-    // Reasignar grupo
-    await conn.query('DELETE FROM estudiante_grupos WHERE estudiante_id = ?', [id]);
+    // Reasignar grupo — solo se quita la membresía del año lectivo activo,
+    // nunca la de años anteriores (eso destruiría el historial académico
+    // que necesitan los boletines y el cierre de año lectivo).
+    const anioActivo = await obtenerAnioActivo(colegio_id);
+    await conn.query(
+      `DELETE eg FROM estudiante_grupos eg
+       JOIN grupos g ON g.id = eg.grupo_id
+       WHERE eg.estudiante_id = ? AND g.ano_lectivo = ?`,
+      [id, anioActivo.anio]
+    );
     if (grupo_id) {
       await conn.query(
         'INSERT INTO estudiante_grupos (estudiante_id, grupo_id) VALUES (?, ?)',
@@ -358,6 +390,14 @@ async function actualizar(req, res) {
     }
 
     await conn.commit();
+
+    registrarAuditoria({
+      colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'estudiante_editado', entidad: 'estudiante', entidad_id: parseInt(id),
+      detalle: { nombre, email },
+    });
+
     res.json({ mensaje: 'Estudiante actualizado' });
   } catch (err) {
     await conn.rollback();
@@ -374,11 +414,38 @@ async function actualizar(req, res) {
   }
 }
 
-// DELETE /api/estudiantes/:id (desactiva)
+// DELETE /api/estudiantes/:id (desactiva) — body opcional: { motivo_id, detalle }
 async function eliminar(req, res) {
   const { id } = req.params;
+  const { motivo_id, detalle } = req.body || {};
+  const colegio_id = req.usuario.colegio_id;
   try {
-    await db.query('UPDATE usuarios SET activo = FALSE WHERE id = ? AND rol = "estudiante"', [id]);
+    const [[est]] = await db.query('SELECT nombre, colegio_id FROM usuarios WHERE id = ? AND rol = "estudiante"', [id]);
+
+    let motivoValido = null;
+    if (motivo_id) {
+      const catalogo = await obtenerMotivos(colegio_id);
+      motivoValido = catalogo.find(m => m.id === parseInt(motivo_id)) || null;
+      if (!motivoValido) {
+        return res.status(400).json({ error: 'El motivo de retiro seleccionado no existe en el catálogo del colegio' });
+      }
+    }
+
+    await db.query(
+      `UPDATE usuarios SET activo = FALSE, motivo_retiro_id = ?, motivo_retiro_detalle = ?, retirado_en = NOW()
+       WHERE id = ? AND rol = "estudiante"`,
+      [motivoValido ? motivoValido.id : null, (detalle || '').trim() || null, id]
+    );
+
+    if (est) {
+      registrarAuditoria({
+        colegio_id: est.colegio_id || colegio_id, usuario_id: req.usuario.id,
+        usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+        accion: 'estudiante_retirado', entidad: 'estudiante', entidad_id: parseInt(id),
+        detalle: { nombre: est.nombre, motivo: motivoValido ? motivoValido.nombre : null, detalle: (detalle || '').trim() || null },
+      });
+    }
+
     res.json({ mensaje: 'Estudiante desactivado' });
   } catch (err) {
     console.error('Error al desactivar estudiante:', err);
@@ -443,6 +510,64 @@ async function subirFoto(req, res) {
       console.error('Error al guardar la foto:', dbErr);
       res.status(500).json({ error: 'Error al guardar la foto' });
     }
+  });
+}
+
+// POST /api/estudiantes/fotos-masivo — cada archivo se llama como el número
+// de documento del alumno (ej. "1098765432.jpg"); los que no encuentran
+// coincidencia se reportan para que el colegio los revise, no se descartan
+// en silencio.
+async function subirFotosMasivo(req, res) {
+  uploadFotosMasivo(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No se recibió ningún archivo' });
+    }
+
+    const colegio_id = req.usuario.colegio_id;
+    const asignadas = [];
+    const sinCoincidencia = [];
+
+    for (const file of req.files) {
+      const numeroDocumento = path.basename(file.originalname, path.extname(file.originalname)).trim();
+      try {
+        const [estudiantes] = await db.query(
+          `SELECT id, foto_url FROM usuarios
+           WHERE rol = 'estudiante' AND colegio_id = ? AND numero_documento = ?`,
+          [colegio_id, numeroDocumento]
+        );
+
+        if (estudiantes.length !== 1) {
+          sinCoincidencia.push({
+            archivo: file.originalname,
+            motivo: estudiantes.length === 0 ? 'Ningún estudiante con ese número de documento' : 'Varios estudiantes con ese número de documento',
+          });
+          continue;
+        }
+
+        const est = estudiantes[0];
+        if (est.foto_url) {
+          const anterior = path.join(__dirname, '../..', est.foto_url);
+          if (fs.existsSync(anterior)) fs.unlinkSync(anterior);
+        }
+
+        const ext = path.extname(file.originalname).toLowerCase();
+        const nombreArchivo = `estudiante_${est.id}_${Date.now()}${ext}`;
+        fs.writeFileSync(path.join(uploadsDirEstudiantes, nombreArchivo), file.buffer);
+
+        const foto_url = `/uploads/estudiantes/${nombreArchivo}`;
+        await db.query('UPDATE usuarios SET foto_url = ? WHERE id = ?', [foto_url, est.id]);
+        asignadas.push({ archivo: file.originalname, estudiante_id: est.id });
+      } catch (fileErr) {
+        console.error(`Error al procesar la foto ${file.originalname}:`, fileErr);
+        sinCoincidencia.push({ archivo: file.originalname, motivo: 'Error al guardar el archivo' });
+      }
+    }
+
+    res.json({
+      mensaje: `${asignadas.length} de ${req.files.length} fotos asignadas`,
+      data: { asignadas: asignadas.length, sin_coincidencia: sinCoincidencia, total: req.files.length },
+    });
   });
 }
 
@@ -605,4 +730,4 @@ async function historial(req, res) {
   }
 }
 
-module.exports = { listar, crear, importar, actualizar, eliminar, historial, ficha, subirFoto };
+module.exports = { listar, crear, importar, actualizar, eliminar, historial, ficha, subirFoto, subirFotosMasivo };

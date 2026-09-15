@@ -1,5 +1,6 @@
 const db = require('../database');
 const { enviarEmail } = require('../services/emailService');
+const { filtrarPorPreferencia } = require('../utils/preferenciasNotificacion');
 
 const ALCANCES_VALIDOS = ['grupo', 'grado', 'colegio'];
 
@@ -184,15 +185,18 @@ async function crear(req, res) {
 
     // Notificación in-app (campanita) para cada acudiente
     if (padres.length) {
-      const valoresNotif = padres.map(p => [
-        p.id, 'mensaje_interno', `mensaje_${mensajeInternoId}`,
-        `Comunicado: ${asuntoTxt}`, mensajeTxt.slice(0, 140),
-        JSON.stringify({ mensaje_id: mensajeInternoId }),
-      ]);
-      await db.query(
-        'INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?',
-        [valoresNotif]
-      );
+      const conNotifActiva = await filtrarPorPreferencia(padres.map(p => p.id), 'notif_mensajes');
+      if (conNotifActiva.length) {
+        const valoresNotif = conNotifActiva.map(id => [
+          id, 'mensaje_interno', `mensaje_${mensajeInternoId}`,
+          `Comunicado: ${asuntoTxt}`, mensajeTxt.slice(0, 140),
+          JSON.stringify({ mensaje_id: mensajeInternoId }),
+        ]);
+        await db.query(
+          'INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?',
+          [valoresNotif]
+        );
+      }
     }
 
     res.status(201).json({

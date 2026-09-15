@@ -1,5 +1,6 @@
 const db = require('../database');
 const { enviarMensaje } = require('../services/whatsappService');
+const { estudiantesConWhatsappActivo } = require('../utils/preferenciasNotificacion');
 const Anthropic = require('@anthropic-ai/sdk');
 const { CLAUDE_MODEL } = require('../config/ia');
 
@@ -22,6 +23,7 @@ async function notificarAusentes(req, res) {
   try {
     const [ausentes] = await db.query(`
       SELECT
+        u.id                AS estudiante_id,
         u.nombre            AS estudiante,
         u.telefono_padres,
         g.nombre            AS grupo,
@@ -40,10 +42,13 @@ async function notificarAusentes(req, res) {
 
     let enviados    = 0;
     let sinTelefono = 0;
+    let omitidosPorPreferencia = 0;
 
     const fechaTexto = formatearFecha(fecha);
+    const conWhatsappActivo = new Set(await estudiantesConWhatsappActivo(ausentes.map(e => e.estudiante_id)));
 
     for (const est of ausentes) {
+      if (!conWhatsappActivo.has(est.estudiante_id)) { omitidosPorPreferencia++; continue; }
       if (!est.telefono_padres) { sinTelefono++; continue; }
 
       const mensaje = [
@@ -63,7 +68,7 @@ async function notificarAusentes(req, res) {
       else sinTelefono++;
     }
 
-    res.json({ data: { enviados, sin_telefono: sinTelefono, total_ausentes: ausentes.length } });
+    res.json({ data: { enviados, sin_telefono: sinTelefono, omitidos_por_preferencia: omitidosPorPreferencia, total_ausentes: ausentes.length } });
   } catch (err) {
     console.error('Error notificarAusentes:', err);
     res.status(500).json({ error: 'Error al enviar las notificaciones' });

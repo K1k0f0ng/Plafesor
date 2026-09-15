@@ -29,13 +29,15 @@ function renderLanding() {
 }
 
 describe('LandingPage · hero', () => {
-  test('el hero ya no usa imágenes', () => {
+  test('el hero muestra la captura real del panel del director', () => {
     const { container } = renderLanding();
     const hero = container.querySelector('.hero-section');
 
     expect(hero).toBeTruthy();
-    expect(hero.querySelectorAll('img')).toHaveLength(0);
-    expect(container.querySelectorAll('.hero-marquee, .hero-banner')).toHaveLength(0);
+    const shot = hero.querySelector('.hero-shot-img');
+    expect(shot).toBeTruthy();
+    expect(shot).toHaveAttribute('src', '/hero-dashboard.jpg');
+    expect(shot).toHaveAttribute('alt', expect.stringContaining('Panel del director'));
   });
 
   test('el hero comunica la promesa y ofrece el CTA de demo', () => {
@@ -48,10 +50,10 @@ describe('LandingPage · hero', () => {
     expect(screen.getByPlaceholderText('rector@micolegio.edu.co')).toBeInTheDocument();
   });
 
-  test('muestra el panel institucional con el riesgo por grado', () => {
+  test('la captura del panel mantiene la señal en vivo y la cinta de señales', () => {
     const { container } = renderLanding();
 
-    expect(container.querySelectorAll('.hero-heatmap-cell')).toHaveLength(7);
+    expect(container.querySelector('.hero-shot-signal-text')).toBeTruthy();
     expect(container.querySelectorAll('.hero-ticker-item').length).toBeGreaterThan(0);
   });
 

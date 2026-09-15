@@ -257,18 +257,20 @@ async function getMisGrupos(req, res) {
         SELECT g.id, g.nombre, g.grado
         FROM grupos g
         JOIN usuarios u ON u.grupo_dirigido_id = g.id
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
         WHERE u.id = ? AND g.activo = TRUE
-        ORDER BY g.grado ASC, g.nombre ASC
+        ORDER BY ga.orden ASC, g.nombre ASC
       `, [userId]);
       return res.json({ data: filas });
     }
     const colegioId = colegio_id;
     if (!colegioId) return res.status(400).json({ error: 'No se pudo determinar el colegio' });
     const [filas] = await db.query(`
-      SELECT id, nombre, grado
-      FROM grupos
-      WHERE colegio_id = ? AND activo = TRUE
-      ORDER BY grado ASC, nombre ASC
+      SELECT g.id, g.nombre, g.grado
+      FROM grupos g
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
+      WHERE g.colegio_id = ? AND g.activo = TRUE
+      ORDER BY ga.orden ASC, g.nombre ASC
     `, [colegioId]);
     res.json({ data: filas });
   } catch (err) {

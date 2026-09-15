@@ -4,6 +4,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 const { ordenApellido, ordenarPorApellido } = require('../utils/ordenNombre');
+const { registrarAuditoria } = require('../utils/auditoria');
+const { anioEstaCerrado } = require('../utils/anioLectivo');
 
 // Carpeta PRIVADA (fuera de /uploads, que se sirve público vía express.static)
 // — los archivos de entregas solo se descargan mediante endpoints con token.
@@ -197,7 +199,13 @@ async function crear(req, res) {
   if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
 
   try {
-    const [grupos] = await db.query('SELECT grado FROM grupos WHERE id = ?', [grupo_id]);
+    const [grupos] = await db.query('SELECT grado, colegio_id, ano_lectivo FROM grupos WHERE id = ?', [grupo_id]);
+    if (!grupos[0]) return res.status(404).json({ error: 'Grupo no encontrado' });
+
+    if (await anioEstaCerrado(grupos[0].colegio_id, grupos[0].ano_lectivo)) {
+      return res.status(409).json({ error: `El año lectivo ${grupos[0].ano_lectivo} ya está cerrado. No se pueden crear actividades nuevas en ese año.` });
+    }
+
     const grado = grupos[0]?.grado || '5';
     const contenidoJson = typeof contenido === 'string' ? contenido : JSON.stringify(contenido);
 
@@ -687,6 +695,12 @@ async function calificarManual(req, res) {
 
   const errorPorcentaje = await validarPorcentaje(porcentaje, grupo_id, materia_id, periodo);
   if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
+
+  const [[grupoInfo]] = await db.query('SELECT colegio_id, ano_lectivo FROM grupos WHERE id = ?', [grupo_id]);
+  if (!grupoInfo) return res.status(404).json({ error: 'Grupo no encontrado' });
+  if (await anioEstaCerrado(grupoInfo.colegio_id, grupoInfo.ano_lectivo)) {
+    return res.status(409).json({ error: `El año lectivo ${grupoInfo.ano_lectivo} ya está cerrado. No se pueden registrar notas nuevas en ese año.` });
+  }
 
   const conn = await db.getConnection();
   try {
@@ -1264,18 +1278,31 @@ async function calificarEntrega(req, res) {
   }
   try {
     const [[fila]] = await db.query(`
-      SELECT ra.id, a.docente_id
+      SELECT ra.id, ra.nota AS nota_anterior, ra.estudiante_id, a.docente_id, a.titulo, g.colegio_id
       FROM resultados_actividades ra
       JOIN actividades a ON a.id = ra.actividad_id
+      JOIN grupos g ON g.id = a.grupo_id
       WHERE ra.id = ?
     `, [resultadoId]);
     if (!fila || fila.docente_id !== req.usuario.id) {
       return res.status(404).json({ error: 'Entrega no encontrada' });
     }
+    const notaNueva = parseFloat(notaNum.toFixed(1));
     await db.query(
       'UPDATE resultados_actividades SET nota = ?, comentario_docente = ? WHERE id = ?',
-      [parseFloat(notaNum.toFixed(1)), req.body.comentario || null, resultadoId]
+      [notaNueva, req.body.comentario || null, resultadoId]
     );
+
+    registrarAuditoria({
+      colegio_id: fila.colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'nota_editada', entidad: 'resultado_actividad', entidad_id: fila.id,
+      detalle: {
+        actividad: fila.titulo, estudiante_id: fila.estudiante_id,
+        nota_anterior: fila.nota_anterior, nota_nueva: notaNueva,
+      },
+    });
+
     res.json({ mensaje: 'Entrega calificada' });
   } catch (err) {
     console.error('Error al calificar entrega:', err);

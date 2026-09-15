@@ -9,6 +9,7 @@ router.use(verificarToken);
 router.get('/',              permitirRoles('admin', 'docente'), ctrl.listar);
 router.post('/',             permitirRoles('admin'), ctrl.crear);
 router.post('/importar',     permitirRoles('admin'), ctrl.importar);
+router.post('/fotos-masivo', permitirRoles('admin'), ctrl.subirFotosMasivo);
 router.put('/:id',           permitirRoles('admin'), ctrl.actualizar);
 router.delete('/:id',        permitirRoles('admin'), ctrl.eliminar);
 router.get('/:id/historial', permitirRoles('admin', 'docente', 'director', 'estudiante', 'padre'), ctrl.historial);

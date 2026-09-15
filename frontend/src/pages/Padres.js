@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
+import { exportarExcel } from '../utils/exportarExcel';
 
 export default function Padres() {
   const navigate = useNavigate();
@@ -117,7 +118,22 @@ export default function Padres() {
 
         {/* Lista */}
         <div style={es.card}>
-          <h3 style={es.cardTitulo}>Cuentas de padres ({padres.length})</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ ...es.cardTitulo, marginBottom: 0 }}>Cuentas de padres ({padres.length})</h3>
+            <button
+              onClick={() => exportarExcel(padres, [
+                { header: 'Nombre', campo: 'nombre' },
+                { header: 'Correo', campo: 'email' },
+                { header: 'Hijo/a vinculado', campo: 'hijos' },
+                { header: 'Estado', valor: p => p.activo ? 'Activo' : 'Inactivo' },
+              ], 'padres_playfesor.xlsx', 'Padres')}
+              disabled={padres.length === 0}
+              style={es.btnExportar}
+            >
+              Exportar a Excel
+            </button>
+          </div>
+          <div style={{ marginBottom: '8px' }} />
           {cargando ? (
             <p style={es.textoGris}>Cargando...</p>
           ) : padres.length === 0 ? (
@@ -169,6 +185,7 @@ const es = {
   input:     { flex: 1, minWidth: '160px', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e8e8e8', fontSize: '14px', fontFamily: 'inherit', outline: 'none' },
   select:    { flex: 1, minWidth: '200px', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e8e8e8', fontSize: '14px', fontFamily: 'inherit', background: '#fff' },
   btnPrimario: { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  btnExportar: { background: '#f0f7f0', border: '1px solid #c5e1c5', color: '#2e7d32', borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   exito:     { marginTop: '14px', background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', padding: '12px 16px', fontSize: '14px' },
   errorBox:  { marginTop: '12px', background: '#fff0f0', color: '#c62828', borderRadius: '8px', padding: '10px 14px', fontSize: '14px' },
   textoGris: { color: '#888', fontSize: '14px' },

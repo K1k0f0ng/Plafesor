@@ -1,5 +1,6 @@
 const db = require('../database');
 const { ordenApellido } = require('../utils/ordenNombre');
+const { obtenerGrados } = require('../utils/gradoAcademico');
 
 // GET /api/grupos — solo los grupos del colegio del admin
 async function listar(req, res) {
@@ -10,9 +11,10 @@ async function listar(req, res) {
       FROM grupos g
       JOIN colegios c ON c.id = g.colegio_id
       LEFT JOIN estudiante_grupos eg ON eg.grupo_id = g.id
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
       WHERE g.activo = TRUE AND g.colegio_id = ?
-      GROUP BY g.id
-      ORDER BY g.grado ASC, g.nombre ASC
+      GROUP BY g.id, ga.orden
+      ORDER BY ga.orden ASC, g.nombre ASC
     `, [req.usuario.colegio_id]);
     res.json({ data: filas });
   } catch (err) {
@@ -31,6 +33,11 @@ async function crear(req, res) {
   }
   if (!colegio_id) {
     return res.status(400).json({ error: 'Tu usuario no tiene un colegio asignado' });
+  }
+
+  const gradosColegio = await obtenerGrados(colegio_id);
+  if (!gradosColegio.some(g => g.codigo === String(grado))) {
+    return res.status(400).json({ error: 'El grado seleccionado no existe en el catálogo de grados del colegio' });
   }
 
   try {

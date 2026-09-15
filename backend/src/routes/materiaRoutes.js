@@ -48,7 +48,8 @@ router.get('/asignaciones', permitirRoles('admin'), async (req, res) => {
       JOIN grupos g ON g.id = dgm.grupo_id
       JOIN materias m ON m.id = dgm.materia_id
       JOIN usuarios u ON u.id = dgm.docente_id
-      ORDER BY g.grado ASC, g.nombre ASC, m.nombre ASC
+      LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
+      ORDER BY ga.orden ASC, g.nombre ASC, m.nombre ASC
     `);
     res.json({ data: filas });
   } catch (err) {

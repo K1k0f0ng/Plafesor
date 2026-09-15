@@ -1,5 +1,6 @@
 const db = require('../database');
 const { enviarMensaje } = require('./whatsappService');
+const { filtrarPorPreferencia } = require('../utils/preferenciasNotificacion');
 
 // Alerta 1: 3+ ausencias en los últimos 5 días
 async function alertarAusenciasConsecutivas() {
@@ -272,12 +273,18 @@ async function generarNotificacionesRiesgo(insertValues, colegioId) {
   }
 
   if (nuevasNotifs.length) {
-    await db.query(`
-      INSERT IGNORE INTO notificaciones
-        (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra)
-      VALUES ?
-    `, [nuevasNotifs]);
-    console.log(`[Riesgo] ${nuevasNotifs.length} notificaciones in-app generadas`);
+    const conNotifActiva = new Set(
+      await filtrarPorPreferencia(nuevasNotifs.map(n => n[0]), 'notif_riesgo_academico')
+    );
+    const notifsFiltradas = nuevasNotifs.filter(n => conNotifActiva.has(n[0]));
+    if (notifsFiltradas.length) {
+      await db.query(`
+        INSERT IGNORE INTO notificaciones
+          (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra)
+        VALUES ?
+      `, [notifsFiltradas]);
+      console.log(`[Riesgo] ${notifsFiltradas.length} notificaciones in-app generadas`);
+    }
   }
 }
 

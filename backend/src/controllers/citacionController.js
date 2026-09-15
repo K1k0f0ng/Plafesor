@@ -1,6 +1,7 @@
 const db = require('../database');
 const { enviarMensaje } = require('../services/whatsappService');
 const { ordenApellido } = require('../utils/ordenNombre');
+const { filtrarPorPreferencia, estudiantesConWhatsappActivo } = require('../utils/preferenciasNotificacion');
 
 function formatearFecha(fechaStr) {
   if (!fechaStr) return null;
@@ -45,16 +46,18 @@ async function getMisGrupos(req, res) {
       const [filas] = await db.query(`
         SELECT g.id, g.nombre, g.grado
         FROM grupos g
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
         WHERE g.id = (SELECT grupo_dirigido_id FROM usuarios WHERE id = ?)
-        ORDER BY g.grado ASC, g.nombre ASC
+        ORDER BY ga.orden ASC, g.nombre ASC
       `, [userId]);
       return res.json({ data: filas });
     }
     if (rol === 'admin' || rol === 'director') {
       const [filas] = await db.query(`
-        SELECT id, nombre, grado FROM grupos
-        WHERE colegio_id = ? AND activo = TRUE
-        ORDER BY grado ASC, nombre ASC
+        SELECT g.id, g.nombre, g.grado FROM grupos g
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
+        WHERE g.colegio_id = ? AND g.activo = TRUE
+        ORDER BY ga.orden ASC, g.nombre ASC
       `, [colegio_id]);
       return res.json({ data: filas });
     }
@@ -124,7 +127,8 @@ async function crear(req, res) {
     );
 
     let whatsappOk = false;
-    if (info.telefono_padres) {
+    const whatsappHabilitado = (await estudiantesConWhatsappActivo([estudiante_id])).length > 0;
+    if (info.telefono_padres && whatsappHabilitado) {
       const fechaTxt = formatearFecha(fecha_cita);
       const horaTxt  = formatearHora(hora_cita);
       const mensaje = [
@@ -157,17 +161,20 @@ async function crear(req, res) {
       [estudiante_id]
     );
     if (padres.length) {
-      const fechaTxt = formatearFecha(fecha_cita);
-      const valores = padres.map(p => [
-        p.padre_id, 'citacion', `citacion_${result.insertId}`,
-        `Citación: ${info.estudiante}`,
-        `La institución solicita una reunión sobre ${info.estudiante}.${fechaTxt ? ` Fecha propuesta: ${fechaTxt}.` : ''}`,
-        JSON.stringify({ citacion_id: result.insertId, estudiante_id }),
-      ]);
-      await db.query(
-        `INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?`,
-        [valores]
-      );
+      const conNotifActiva = await filtrarPorPreferencia(padres.map(p => p.padre_id), 'notif_citaciones');
+      if (conNotifActiva.length) {
+        const fechaTxt = formatearFecha(fecha_cita);
+        const valores = conNotifActiva.map(padreId => [
+          padreId, 'citacion', `citacion_${result.insertId}`,
+          `Citación: ${info.estudiante}`,
+          `La institución solicita una reunión sobre ${info.estudiante}.${fechaTxt ? ` Fecha propuesta: ${fechaTxt}.` : ''}`,
+          JSON.stringify({ citacion_id: result.insertId, estudiante_id }),
+        ]);
+        await db.query(
+          `INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?`,
+          [valores]
+        );
+      }
     }
 
     res.status(201).json({ mensaje: 'Citación enviada', data: { id: result.insertId, whatsapp_enviado: whatsappOk } });

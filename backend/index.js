@@ -128,6 +128,13 @@ app.use('/api/observaciones',    require('./src/routes/observacionPeriodoRoutes'
 app.use('/api/citaciones',       require('./src/routes/citacionRoutes'));
 app.use('/api/mensajes-masivos', require('./src/routes/mensajeMasivoRoutes'));
 app.use('/api/mensajes',         require('./src/routes/mensajeRoutes'));
+app.use('/api/auditoria',        require('./src/routes/auditoriaRoutes'));
+app.use('/api/calificaciones-historicas', require('./src/routes/historicoRoutes'));
+app.use('/api/anios-lectivos', require('./src/routes/anioLectivoRoutes'));
+app.use('/api/grados-academicos', require('./src/routes/gradoAcademicoRoutes'));
+app.use('/api/motivos-retiro', require('./src/routes/motivoRetiroRoutes'));
+app.use('/api/preferencias-notificacion', require('./src/routes/preferenciaNotificacionRoutes'));
+app.use('/api/colegio-modulos', require('./src/routes/colegioModulosRoutes'));
 
 // Manejo global de errores
 app.use((err, req, res, next) => {

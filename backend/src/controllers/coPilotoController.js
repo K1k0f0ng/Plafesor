@@ -216,9 +216,10 @@ async function preguntarDocente(req, res) {
         JOIN grupos g ON g.id = dgm.grupo_id
         JOIN materias m ON m.id = dgm.materia_id
         LEFT JOIN estudiante_grupos eg ON eg.grupo_id = g.id
+        LEFT JOIN grados_academicos ga ON ga.codigo = g.grado AND ga.colegio_id = g.colegio_id
         WHERE dgm.docente_id = ?
-        GROUP BY g.id, m.id
-        ORDER BY g.grado ASC, g.nombre ASC, m.nombre ASC
+        GROUP BY g.id, m.id, ga.orden
+        ORDER BY ga.orden ASC, g.nombre ASC, m.nombre ASC
       `, [did]),
 
       // 2. Promedio por grupo × materia

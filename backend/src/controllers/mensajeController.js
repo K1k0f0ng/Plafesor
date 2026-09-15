@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const { filtrarPorPreferencia } = require('../utils/preferenciasNotificacion');
 
 // Carpeta PRIVADA (fuera de /uploads, que se sirve público) — los adjuntos de
 // mensajería solo se descargan mediante el endpoint protegido de abajo.
@@ -366,16 +367,19 @@ async function crear(req, res) {
         await conn.commit();
 
         if (!esBorrador && destinatarios.length) {
-          const valores = destinatarios.map(destId => [
-            destId, 'mensaje_interno', `mensaje_${mensajeId}`,
-            `Nuevo mensaje: ${asunto.trim()}`,
-            cuerpo.trim().slice(0, 140),
-            JSON.stringify({ mensaje_id: mensajeId }),
-          ]);
-          await db.query(
-            'INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?',
-            [valores]
-          );
+          const conNotifActiva = await filtrarPorPreferencia(destinatarios, 'notif_mensajes');
+          if (conNotifActiva.length) {
+            const valores = conNotifActiva.map(destId => [
+              destId, 'mensaje_interno', `mensaje_${mensajeId}`,
+              `Nuevo mensaje: ${asunto.trim()}`,
+              cuerpo.trim().slice(0, 140),
+              JSON.stringify({ mensaje_id: mensajeId }),
+            ]);
+            await db.query(
+              'INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?',
+              [valores]
+            );
+          }
         }
 
         res.status(201).json({ mensaje: esBorrador ? 'Borrador guardado' : 'Mensaje enviado', data: { id: mensajeId } });
@@ -441,16 +445,19 @@ async function enviarBorrador(req, res) {
       }
       await conn.commit();
 
-      const valores = destinatarios.map(destId => [
-        destId, 'mensaje_interno', `mensaje_${id}`,
-        `Nuevo mensaje: ${borrador.asunto}`,
-        borrador.cuerpo.slice(0, 140),
-        JSON.stringify({ mensaje_id: parseInt(id) }),
-      ]);
-      await db.query(
-        'INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?',
-        [valores]
-      );
+      const conNotifActiva = await filtrarPorPreferencia(destinatarios, 'notif_mensajes');
+      if (conNotifActiva.length) {
+        const valores = conNotifActiva.map(destId => [
+          destId, 'mensaje_interno', `mensaje_${id}`,
+          `Nuevo mensaje: ${borrador.asunto}`,
+          borrador.cuerpo.slice(0, 140),
+          JSON.stringify({ mensaje_id: parseInt(id) }),
+        ]);
+        await db.query(
+          'INSERT IGNORE INTO notificaciones (usuario_id, tipo, ref_key, titulo, mensaje, datos_extra) VALUES ?',
+          [valores]
+        );
+      }
 
       res.json({ mensaje: 'Mensaje enviado', data: { id: parseInt(id) } });
     } catch (err) {
