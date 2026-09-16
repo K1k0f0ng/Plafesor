@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
-import { IconAccessibility, IconDownload, IconBot } from '../components/Icons';
+import { IconAccessibility, IconDownload, IconBot, IconClipboard } from '../components/Icons';
 import { formatearApellidoPrimero } from '../utils/ordenNombre';
 
 const CAMPOS = [
@@ -48,6 +48,13 @@ export default function PIAR() {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
 
+  // Documentos de soporte del PIAR (diagnósticos, valoraciones, etc.)
+  const [documentos, setDocumentos] = useState([]);
+  const [cargandoDocumentos, setCargandoDocumentos] = useState(false);
+  const [archivosSeleccionados, setArchivosSeleccionados] = useState([]);
+  const [descripcionDocumento, setDescripcionDocumento] = useState('');
+  const [subiendoDocumentos, setSubiendoDocumentos] = useState(false);
+
   const cargarEstudiantes = useCallback(async () => {
     try {
       const resp = await axiosAuth.get(`/api/piar/colegio/${usuario.colegio_id}`);
@@ -61,15 +68,32 @@ export default function PIAR() {
 
   const estudianteInfo = estudiantes.find(e => String(e.estudiante_id) === String(estudianteId));
 
+  const cargarDocumentos = useCallback(async (id) => {
+    if (!id) return setDocumentos([]);
+    setCargandoDocumentos(true);
+    try {
+      const resp = await axiosAuth.get(`/api/piar/estudiante/${id}/documentos`);
+      setDocumentos(resp.data.data);
+    } catch {
+      setDocumentos([]);
+    } finally {
+      setCargandoDocumentos(false);
+    }
+  }, []);
+
   async function seleccionarEstudiante(id) {
     setEstudianteId(id);
     setForm(FORM_VACIO);
     setPiarActual(null);
     setDocumentoEditable('');
+    setDocumentos([]);
+    setArchivosSeleccionados([]);
+    setDescripcionDocumento('');
     setMensaje('');
     setError('');
     if (!id) return;
 
+    cargarDocumentos(id);
     setCargandoPiar(true);
     try {
       const resp = await axiosAuth.get(`/api/piar/estudiante/${id}`);
@@ -161,6 +185,55 @@ export default function PIAR() {
     }
   }
 
+  async function subirDocumentos() {
+    if (archivosSeleccionados.length === 0) return;
+    setSubiendoDocumentos(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      archivosSeleccionados.forEach(archivo => formData.append('documentos', archivo));
+      if (descripcionDocumento.trim()) formData.append('descripcion', descripcionDocumento.trim());
+      await axiosAuth.post(`/api/piar/estudiante/${estudianteId}/documentos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setArchivosSeleccionados([]);
+      setDescripcionDocumento('');
+      await cargarDocumentos(estudianteId);
+      setMensaje('Documentos subidos correctamente.');
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al subir los documentos');
+    } finally {
+      setSubiendoDocumentos(false);
+    }
+  }
+
+  async function eliminarDocumento(id) {
+    if (!window.confirm('¿Eliminar este documento?')) return;
+    try {
+      await axiosAuth.delete(`/api/piar/documentos/${id}`);
+      await cargarDocumentos(estudianteId);
+    } catch {
+      setError('Error al eliminar el documento.');
+    }
+  }
+
+  async function descargarDocumento(doc) {
+    try {
+      const resp = await axiosAuth.get(`/api/piar/documentos/${doc.id}/descargar`, { responseType: 'blob' });
+      const href = URL.createObjectURL(new Blob([resp.data]));
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = doc.nombre_original;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(href);
+    } catch {
+      setError('Error al descargar el documento.');
+    }
+  }
+
   const rutaVolver = usuario.rol === 'docente' ? '/dashboard-docente' : '/dashboard-director';
 
   return (
@@ -208,6 +281,64 @@ export default function PIAR() {
 
         {estudianteId && !cargandoPiar && (
           <>
+            {/* Documentos de soporte */}
+            <div style={es.card}>
+              <div style={es.resultadoHeader}>
+                <h3 style={es.cardTitulo}>
+                  <IconClipboard size={16} style={{ marginRight: 6, verticalAlign: 'middle', color: '#667eea' }} />
+                  Documentos de soporte
+                </h3>
+                <a href="/documentos/PIAR.pdf" target="_blank" rel="noreferrer" style={{ ...es.btnSecundario, display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+                  <IconDownload size={13} style={{ marginRight: 5 }} />Documentación requerida (referencia)
+                </a>
+              </div>
+              <p style={es.ayuda}>
+                Sube diagnósticos, valoraciones o certificados del estudiante. La IA los usa como evidencia
+                real al generar el borrador — nunca inventa un diagnóstico que no esté escrito en ellos.
+              </p>
+
+              {cargandoDocumentos ? (
+                <p style={es.ayuda}>Cargando documentos...</p>
+              ) : documentos.length > 0 ? (
+                <ul style={es.listaDocumentos}>
+                  {documentos.map(doc => (
+                    <li key={doc.id} style={es.itemDocumento}>
+                      <div>
+                        <button onClick={() => descargarDocumento(doc)} style={es.enlaceDocumento}>{doc.nombre_original}</button>
+                        <div style={es.metaDocumento}>
+                          {doc.descripcion ? `${doc.descripcion} · ` : ''}
+                          {doc.subido_por_nombre} · {new Date(doc.creado_en).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+                      </div>
+                      <button onClick={() => eliminarDocumento(doc.id)} style={es.btnEliminarDoc}>Eliminar</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={es.ayuda}>Todavía no se han subido documentos para este estudiante.</p>
+              )}
+
+              <div style={es.filaSubida}>
+                <input
+                  type="file" accept=".pdf,image/jpeg,image/png,image/webp" multiple
+                  onChange={e => setArchivosSeleccionados(Array.from(e.target.files || []))}
+                  style={es.inputArchivo}
+                />
+                <input
+                  type="text" placeholder="Descripción (opcional, ej: Valoración psicológica)"
+                  value={descripcionDocumento} onChange={e => setDescripcionDocumento(e.target.value)}
+                  style={{ ...es.input, flex: 1 }}
+                />
+                <button
+                  onClick={subirDocumentos}
+                  disabled={archivosSeleccionados.length === 0 || subiendoDocumentos}
+                  style={{ ...es.btnGenerar, opacity: (archivosSeleccionados.length === 0 || subiendoDocumentos) ? 0.6 : 1 }}
+                >
+                  {subiendoDocumentos ? 'Subiendo...' : 'Subir'}
+                </button>
+              </div>
+            </div>
+
             {/* Formulario con la información real */}
             <div style={es.card}>
               <h3 style={es.cardTitulo}>Información del estudiante (componentes del Decreto 1421)</h3>
@@ -335,6 +466,14 @@ const es = {
   exito: { background: '#e8f5e9', color: '#2e7d32', padding: '14px 18px', borderRadius: '12px', marginBottom: '20px', fontSize: '14px' },
 
   resultadoHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 },
+
+  listaDocumentos: { listStyle: 'none', margin: '0 0 16px', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' },
+  itemDocumento: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '10px', background: '#faf9ff', border: '1px solid #eee6fa' },
+  enlaceDocumento: { background: 'none', border: 'none', padding: 0, color: '#667eea', fontWeight: '700', fontSize: '13.5px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
+  metaDocumento: { fontSize: '11.5px', color: '#999', marginTop: '2px' },
+  btnEliminarDoc: { background: '#fff0f0', color: '#c62828', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  filaSubida: { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #f0f0f5' },
+  inputArchivo: { fontSize: '13px', fontFamily: 'inherit' },
   documentoTextarea: {
     width: '100%', padding: '18px', borderRadius: '12px', border: '1px solid #e8eaf6',
     fontSize: '14px', lineHeight: '1.7', fontFamily: 'Georgia, serif', color: '#333',

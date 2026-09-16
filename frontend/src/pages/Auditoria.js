@@ -17,6 +17,23 @@ const ACCION_LABELS = {
   grado_academico_editado: 'Grado académico editado',
   motivo_retiro_editado: 'Motivo de retiro actualizado',
   modulos_colegio_editados: 'Módulos del portal actualizados',
+  evento_institucional_creado: 'Evento de agenda creado',
+  evento_institucional_editado: 'Evento de agenda editado',
+  evento_institucional_eliminado: 'Evento de agenda eliminado',
+  personal_creado: 'Usuario del sistema creado',
+  personal_editado: 'Usuario del sistema editado',
+  personal_desactivado: 'Usuario del sistema desactivado',
+  piar_documento_subido: 'Documento de PIAR subido',
+  piar_documento_eliminado: 'Documento de PIAR eliminado',
+  grupo_editado: 'Grupo editado',
+  semana_academica_editada: 'Semana académica editada',
+  salon_editado: 'Salón editado',
+  area_academica_editada: 'Área académica editada',
+  asignatura_editada: 'Asignatura editada',
+  grado_materias_editado: 'Asignaturas del grado actualizadas',
+  clase_definida: 'Clase definida',
+  carga_academica_reasignada: 'Carga académica reasignada',
+  clases_trasladadas: 'Clases trasladadas masivamente',
 };
 
 const ROL_ETIQUETA = { director: 'Director', admin: 'Administrador', docente: 'Docente' };
@@ -55,6 +72,37 @@ function descripcionDetalle(accion, detalleTexto) {
       return Array.isArray(d.modulos_desactivados)
         ? (d.modulos_desactivados.length ? `Desactivados: ${d.modulos_desactivados.join(', ')}` : 'Todos los módulos activos')
         : '—';
+    case 'evento_institucional_creado':
+    case 'evento_institucional_editado':
+    case 'evento_institucional_eliminado':
+      return [d.titulo, d.categoria].filter(Boolean).join(' · ');
+    case 'personal_creado':
+    case 'personal_editado':
+      return `${d.nombre || ''}${d.email ? ` (${d.email})` : ''}${d.cargo ? ` · ${d.cargo}` : ''}`;
+    case 'personal_desactivado':
+      return d.nombre || '';
+    case 'piar_documento_subido':
+      return `${d.cantidad ?? 1} documento(s)`;
+    case 'piar_documento_eliminado':
+      return d.nombre_original || '';
+    case 'grupo_editado':
+      return [d.nombre, d.grado].filter(Boolean).join(' · ');
+    case 'semana_academica_editada':
+      return [d.nombre, d.activo !== undefined && (d.activo ? 'Activo' : 'Inactivo')].filter(Boolean).join(' · ');
+    case 'salon_editado':
+      return d.nombre ? `${d.nombre}${d.tipo ? ` (${d.tipo})` : ''}` : '—';
+    case 'area_academica_editada':
+      return d.nombre ? `${d.codigo ? `${d.codigo} — ` : ''}${d.nombre}${d.tipo ? ` (${d.tipo})` : ''}` : '—';
+    case 'asignatura_editada':
+      return d.nombre ? `${d.codigo ? `${d.codigo} — ` : ''}${d.nombre}${d.tipo ? ` (${d.tipo})` : ''}` : (d.tipo || '—');
+    case 'grado_materias_editado':
+      return `Grado ${d.grado ?? ''}: ${d.cantidad ?? 0} asignatura(s)`;
+    case 'clase_definida':
+      return d.materia ? `${d.materia}${d.tipo ? ` (${d.tipo})` : ''}` : (d.tipo || '—');
+    case 'carga_academica_reasignada':
+      return `${d.docente_origen || ''} → ${d.docente_destino || ''} · ${d.reasignadas ?? 0} clase(s)${d.omitidas ? `, ${d.omitidas} omitida(s)` : ''}`;
+    case 'clases_trasladadas':
+      return `${d.grupo_origen || ''} → ${(d.grupos_destino || []).join(', ')}`;
     default:
       return '—';
   }

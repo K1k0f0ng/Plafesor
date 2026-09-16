@@ -1,6 +1,7 @@
 const db = require('../database');
 const { ordenApellido } = require('../utils/ordenNombre');
 const { obtenerGrados } = require('../utils/gradoAcademico');
+const { registrarAuditoria } = require('../utils/auditoria');
 
 // GET /api/grupos — solo los grupos del colegio del admin
 async function listar(req, res) {
@@ -52,6 +53,44 @@ async function crear(req, res) {
   }
 }
 
+// PUT /api/grupos/:id — colegio_id viene del JWT, nunca del body
+async function actualizar(req, res) {
+  const { id } = req.params;
+  const { nombre, grado, ano_lectivo } = req.body;
+  const colegio_id = req.usuario.colegio_id;
+
+  if (!nombre || !grado) {
+    return res.status(400).json({ error: 'Nombre y grado son obligatorios' });
+  }
+
+  try {
+    const [[grupo]] = await db.query('SELECT id FROM grupos WHERE id = ? AND colegio_id = ?', [id, colegio_id]);
+    if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
+
+    const gradosColegio = await obtenerGrados(colegio_id);
+    if (!gradosColegio.some(g => g.codigo === String(grado))) {
+      return res.status(400).json({ error: 'El grado seleccionado no existe en el catálogo de grados del colegio' });
+    }
+
+    await db.query(
+      'UPDATE grupos SET nombre = ?, grado = ?, ano_lectivo = ? WHERE id = ? AND colegio_id = ?',
+      [nombre, grado, ano_lectivo || 2025, id, colegio_id]
+    );
+
+    registrarAuditoria({
+      colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'grupo_editado', entidad: 'grupo', entidad_id: parseInt(id),
+      detalle: { nombre, grado },
+    });
+
+    res.json({ mensaje: 'Grupo actualizado' });
+  } catch (err) {
+    console.error('Error al actualizar grupo:', err);
+    res.status(500).json({ error: 'Error al actualizar el grupo' });
+  }
+}
+
 // GET /api/grupos/:id/estudiantes
 async function listarEstudiantes(req, res) {
   const { id } = req.params;
@@ -97,4 +136,4 @@ async function eliminar(req, res) {
   }
 }
 
-module.exports = { listar, crear, listarEstudiantes, quitarEstudiante, eliminar };
+module.exports = { listar, crear, actualizar, listarEstudiantes, quitarEstudiante, eliminar };

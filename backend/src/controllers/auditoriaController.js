@@ -4,6 +4,12 @@ const ACCIONES_VALIDAS = [
   'inicio_sesion', 'nota_editada', 'estudiante_creado', 'estudiante_editado',
   'estudiante_retirado', 'colegio_editado', 'historico_importado', 'anio_lectivo_cerrado',
   'grado_academico_editado', 'motivo_retiro_editado', 'modulos_colegio_editados',
+  'evento_institucional_creado', 'evento_institucional_editado', 'evento_institucional_eliminado',
+  'personal_creado', 'personal_editado', 'personal_desactivado',
+  'piar_documento_subido', 'piar_documento_eliminado',
+  'grupo_editado', 'semana_academica_editada', 'salon_editado', 'area_academica_editada',
+  'asignatura_editada', 'grado_materias_editado', 'clase_definida', 'carga_academica_reasignada',
+  'clases_trasladadas',
 ];
 
 // GET /api/auditoria/colegio/:colegio_id?accion=&entidad=&desde=&hasta=&pagina=

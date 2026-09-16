@@ -122,6 +122,10 @@ app.use('/api/piar',         require('./src/routes/piarRoutes'));
 app.use('/api/briefing',     require('./src/routes/briefingRoutes'));
 app.use('/api/logros',           require('./src/routes/logroRoutes'));
 app.use('/api/horarios',         require('./src/routes/horarioRoutes'));
+app.use('/api/semana-academica', require('./src/routes/semanaAcademicaRoutes'));
+app.use('/api/salones',          require('./src/routes/salonRoutes'));
+app.use('/api/areas-academicas', require('./src/routes/areaAcademicaRoutes'));
+app.use('/api/grado-materias',   require('./src/routes/gradoMateriaRoutes'));
 app.use('/api/notificaciones',   require('./src/routes/notificacionRoutes'));
 app.use('/api/anotaciones',      require('./src/routes/anotacionRoutes'));
 app.use('/api/observaciones',    require('./src/routes/observacionPeriodoRoutes'));
@@ -135,6 +139,8 @@ app.use('/api/grados-academicos', require('./src/routes/gradoAcademicoRoutes'));
 app.use('/api/motivos-retiro', require('./src/routes/motivoRetiroRoutes'));
 app.use('/api/preferencias-notificacion', require('./src/routes/preferenciaNotificacionRoutes'));
 app.use('/api/colegio-modulos', require('./src/routes/colegioModulosRoutes'));
+app.use('/api/eventos', require('./src/routes/eventoRoutes'));
+app.use('/api/personal', require('./src/routes/personalRoutes'));
 
 // Manejo global de errores
 app.use((err, req, res, next) => {

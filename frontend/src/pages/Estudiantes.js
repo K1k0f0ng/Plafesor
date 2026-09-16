@@ -199,6 +199,12 @@ function CamposAlumno({ valores, set, grupos }) {
         <input type="checkbox" checked={valores.requiere_piar} onChange={e => set({ ...valores, requiere_piar: e.target.checked })} />
         Requiere PIAR (Plan Individual de Ajustes Razonables — Decreto 1421 de 2017)
       </label>
+      {valores.requiere_piar && (
+        <p style={{ flexBasis: '100%', fontSize: '12px', color: '#888', margin: '-4px 0 0', lineHeight: 1.5 }}>
+          Después de guardar, el estudiante aparecerá en la sección PIAR, donde se pueden adjuntar los
+          documentos de soporte (diagnósticos, valoraciones, etc.) antes de generar el borrador con IA.
+        </p>
+      )}
     </>
   );
 }

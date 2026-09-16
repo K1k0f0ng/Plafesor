@@ -194,6 +194,156 @@ async function migrarEsquema() {
   // activado, igual que hoy — nadie pierde acceso a nada hasta que un
   // director/admin decida desactivar algo puntual.
   await agregarColumnaSiFalta('colegios', 'modulos_desactivados', 'JSON NULL');
+
+  // Agenda institucional: eventos generales que ve todo el colegio (o solo
+  // los roles/grados a los que van dirigidos), alimentados por el director
+  // o quien se designe — no por cada docente individualmente. Un evento
+  // puede tener varias fechas (ej. "Crazy Week" toda una semana), cada una
+  // con su propio horario y lugar.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS eventos_institucionales (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      titulo VARCHAR(150) NOT NULL,
+      categoria VARCHAR(30) NOT NULL,
+      detalle TEXT NULL,
+      dirigido_roles JSON NULL,
+      dirigido_grados JSON NULL,
+      creado_por INT NULL,
+      creado_por_nombre VARCHAR(150) NULL,
+      activo BOOLEAN DEFAULT TRUE,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_eventos_colegio (colegio_id, activo)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS eventos_institucionales_fechas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      evento_id INT NOT NULL,
+      fecha DATE NOT NULL,
+      hora_inicio TIME NULL,
+      hora_fin TIME NULL,
+      lugar VARCHAR(150) NULL,
+      INDEX idx_eventos_fechas_evento (evento_id),
+      INDEX idx_eventos_fechas_fecha (fecha)
+    )
+  `);
+
+  // Personal administrativo/directivo (Rector, Coordinador Académico, etc.):
+  // usan el permiso real de 'admin' o 'director', y 'cargo' guarda el título
+  // del puesto solo para mostrarlo y para la Agenda ("dirigido a" ese cargo).
+  await agregarColumnaSiFalta('usuarios', 'cargo', 'VARCHAR(60) NULL');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS personal_datos (
+      usuario_id INT PRIMARY KEY,
+      fecha_nacimiento DATE NULL,
+      telefono_residencial VARCHAR(30) NULL,
+      direccion_residencial VARCHAR(150) NULL,
+      telefono_oficina VARCHAR(30) NULL,
+      direccion_oficina VARCHAR(150) NULL,
+      telefono_celular VARCHAR(30) NULL,
+      telefono_otro VARCHAR(30) NULL,
+      fecha_ingreso_caja_compensacion DATE NULL,
+      fecha_ingreso_institucion DATE NULL,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Documentos de soporte del PIAR (diagnósticos, valoraciones, certificados)
+  // — se guardan fuera de /uploads (carpeta privada) porque son datos
+  // sensibles de salud; solo se sirven por el endpoint protegido de
+  // descarga. La IA los usa como evidencia real al redactar el borrador.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS piar_documentos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      estudiante_id INT NOT NULL,
+      colegio_id INT NOT NULL,
+      archivo_url VARCHAR(255) NOT NULL,
+      nombre_original VARCHAR(255) NOT NULL,
+      descripcion VARCHAR(255) NULL,
+      subido_por INT NULL,
+      subido_por_nombre VARCHAR(150) NULL,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_piar_documentos_estudiante (estudiante_id)
+    )
+  `);
+
+  // Semana académica: qué días de la semana dicta clase el colegio y cómo se
+  // llaman. El número de día es el mismo que ya usa horarios.dia_semana —
+  // por defecto lunes a viernes activos, sábado y domingo creados pero
+  // inactivos (el colegio que sí dicta sábado solo lo activa y renombra).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS semana_academica (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      dia_numero TINYINT NOT NULL,
+      nombre VARCHAR(30) NOT NULL,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      UNIQUE KEY unique_colegio_dia (colegio_id, dia_numero)
+    )
+  `);
+
+  // Salones de clase: catálogo de espacios físicos del colegio, para armar
+  // horarios sin escribir el lugar como texto libre cada vez. El de "permite
+  // clases simultáneas" es para espacios como una cancha que varios grupos
+  // pueden usar a la vez, a diferencia de un salón normal.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS salones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      nombre VARCHAR(60) NOT NULL,
+      permite_clases_simultaneas BOOLEAN NOT NULL DEFAULT FALSE,
+      orden INT NOT NULL DEFAULT 0,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_colegio_nombre (colegio_id, nombre)
+    )
+  `);
+  await agregarColumnaSiFalta('horarios', 'salon_id', 'INT NULL');
+
+  // Áreas académicas: agrupan las asignaturas (ej. "Matemáticas" agrupa
+  // Álgebra, Cálculo, etc.). Catálogo por colegio, con código y nombre
+  // editables — el código es solo una etiqueta administrativa, no se usa
+  // como llave de relación (las asignaturas se enlazan por area_id).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS areas_academicas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      codigo VARCHAR(10) NOT NULL,
+      nombre VARCHAR(150) NOT NULL,
+      orden INT NOT NULL DEFAULT 0,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_colegio_nombre (colegio_id, nombre)
+    )
+  `);
+
+  // Las materias existentes eran globales (compartidas por todos los
+  // colegios). A partir de ahora una asignatura nueva queda ligada a su
+  // colegio y opcionalmente a un área — pero las filas antiguas (colegio_id
+  // NULL) se dejan como catálogo compartido de solo lectura para no romper
+  // asignaciones ya existentes (docente_grupos_materias) de ningún colegio.
+  await agregarColumnaSiFalta('materias', 'colegio_id', 'INT NULL');
+  await agregarColumnaSiFalta('materias', 'area_id', 'INT NULL');
+
+  // Pénsum: qué asignaturas se dictan en cada grado del colegio. El grado se
+  // identifica por su código (grados_academicos.codigo), igual que ya hace
+  // grupos.grado — así no se duplica la relación con una llave distinta.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS grado_materias (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      grado_codigo VARCHAR(20) NOT NULL,
+      materia_id INT NOT NULL,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_colegio_grado_materia (colegio_id, grado_codigo, materia_id)
+    )
+  `);
+
+  // Definición de clases: la intensidad horaria semanal de cada asignación
+  // docente+grupo+materia, para saber cuántas horas a la semana se dicta esa
+  // clase (no reemplaza el horario real, solo la carga planeada).
+  await agregarColumnaSiFalta('docente_grupos_materias', 'intensidad_horaria_semanal', 'INT NULL');
 }
 
 // Prueba de conexión al arrancar

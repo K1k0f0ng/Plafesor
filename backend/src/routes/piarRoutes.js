@@ -14,4 +14,9 @@ router.put('/:id',                   permitirRoles('docente', 'director', 'admin
 router.put('/:id/estado',            permitirRoles('director', 'admin'),            ctrl.actualizarEstado);
 router.get('/:id/pdf',               permitirRoles('docente', 'director', 'admin'), ctrl.descargarPDF);
 
+router.get('/estudiante/:estudiante_id/documentos',  permitirRoles('docente', 'director', 'admin'), ctrl.listarDocumentos);
+router.post('/estudiante/:estudiante_id/documentos', permitirRoles('docente', 'director', 'admin'), ctrl.subirDocumentos);
+router.delete('/documentos/:id',                     permitirRoles('docente', 'director', 'admin'), ctrl.eliminarDocumento);
+router.get('/documentos/:id/descargar',              permitirRoles('docente', 'director', 'admin'), ctrl.descargarDocumento);
+
 module.exports = router;

@@ -5,16 +5,19 @@ import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
 import { IconCalendar, IconArrowLeft, IconClock, IconCheck } from '../components/Icons';
 
-const DIAS = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
-const DIA_COLOR = ['', '#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b'];
+// Paleta cíclica — ya no está atada a un día fijo porque los días activos
+// ahora los define cada colegio en Semana Académica.
+const PALETA_COLORES = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#feb47b'];
 
-const FORM_VACIO = { dia_semana: 1, grupo_id: '', materia_id: '', hora_inicio: '', hora_fin: '' };
+const FORM_VACIO = { dia_semana: null, grupo_id: '', materia_id: '', hora_inicio: '', hora_fin: '', salon_id: '' };
 
 export default function HorarioDocente() {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const [asignaciones, setAsignaciones] = useState([]);
   const [horario, setHorario] = useState([]);
+  const [dias, setDias] = useState([]);
+  const [salones, setSalones] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   const [diaAbierto, setDiaAbierto] = useState(null);
@@ -25,12 +28,16 @@ export default function HorarioDocente() {
   useEffect(() => {
     async function cargar() {
       try {
-        const [respAsig, respHor] = await Promise.all([
+        const [respAsig, respHor, respDias, respSalones] = await Promise.all([
           axiosAuth.get(`/api/docentes/${usuario.id}/asignaciones`),
           axiosAuth.get('/api/horarios/mio'),
+          axiosAuth.get('/api/semana-academica'),
+          axiosAuth.get('/api/salones'),
         ]);
         setAsignaciones(respAsig.data.data || []);
         setHorario(respHor.data.data || []);
+        setDias((respDias.data.data || []).filter(d => d.activo));
+        setSalones(respSalones.data.data || []);
       } catch {
         // silencioso
       } finally {
@@ -39,6 +46,15 @@ export default function HorarioDocente() {
     }
     cargar();
   }, [usuario.id]);
+
+  function colorDia(diaNumero) {
+    const idx = dias.findIndex(d => d.dia_numero === diaNumero);
+    return PALETA_COLORES[idx % PALETA_COLORES.length] || '#667eea';
+  }
+
+  function nombreDia(diaNumero) {
+    return dias.find(d => d.dia_numero === diaNumero)?.nombre || `Día ${diaNumero}`;
+  }
 
   // Grupos únicos del docente
   const grupos = useMemo(() =>
@@ -55,10 +71,10 @@ export default function HorarioDocente() {
   // Horario agrupado por día
   const porDia = useMemo(() => {
     const mapa = {};
-    for (let d = 1; d <= 5; d++) mapa[d] = [];
+    dias.forEach(d => { mapa[d.dia_numero] = []; });
     horario.forEach(h => { if (mapa[h.dia_semana]) mapa[h.dia_semana].push(h); });
     return mapa;
-  }, [horario]);
+  }, [horario, dias]);
 
   function abrirFormDia(dia) {
     setDiaAbierto(dia);
@@ -92,6 +108,7 @@ export default function HorarioDocente() {
         dia_semana:  parseInt(form.dia_semana),
         hora_inicio: form.hora_inicio,
         hora_fin:    form.hora_fin,
+        salon_id:    form.salon_id || null,
       });
       await recargar();
       setMsg({ tipo: 'ok', texto: 'Franja guardada' });
@@ -144,13 +161,15 @@ export default function HorarioDocente() {
           <p style={es.gris}>Cargando...</p>
         ) : grupos.length === 0 ? (
           <div style={es.vacio}>No tienes grupos asignados. Contacta al administrador.</div>
+        ) : dias.length === 0 ? (
+          <div style={es.vacio}>El colegio no tiene días de clase configurados en la Semana Académica.</div>
         ) : (
           <div style={es.diasGrid}>
-            {[1, 2, 3, 4, 5].map(dia => (
+            {dias.map(({ dia_numero: dia }) => (
               <div key={dia} style={es.diaColumna}>
                 {/* Cabecera del día */}
-                <div style={{ ...es.diaCabecera, borderBottom: `3px solid ${DIA_COLOR[dia]}` }}>
-                  <span style={{ ...es.diaNombre, color: DIA_COLOR[dia] }}>{DIAS[dia]}</span>
+                <div style={{ ...es.diaCabecera, borderBottom: `3px solid ${colorDia(dia)}` }}>
+                  <span style={{ ...es.diaNombre, color: colorDia(dia) }}>{nombreDia(dia)}</span>
                   <span style={es.diaCount}>{porDia[dia].length} clase{porDia[dia].length !== 1 ? 's' : ''}</span>
                 </div>
 
@@ -159,13 +178,14 @@ export default function HorarioDocente() {
                   <p style={es.diaVacio}>Sin clases</p>
                 )}
                 {porDia[dia].map(franja => (
-                  <div key={franja.id} style={{ ...es.franja, borderLeft: `3px solid ${DIA_COLOR[dia]}` }}>
+                  <div key={franja.id} style={{ ...es.franja, borderLeft: `3px solid ${colorDia(dia)}` }}>
                     <div style={es.franjaHora}>
                       <IconClock size={12} style={{ color: '#aaa', marginRight: 4, flexShrink: 0 }} />
                       {formatHora(franja.hora_inicio)} – {formatHora(franja.hora_fin)}
                     </div>
                     <div style={es.franjaGrupo}>Grado {franja.grado}° — {franja.nombre_grupo}</div>
                     <div style={es.franjaMateria}>{franja.nombre_materia}</div>
+                    {franja.nombre_salon && <div style={es.franjaSalon}>{franja.nombre_salon}</div>}
                     <button onClick={() => eliminar(franja.id)} style={es.btnEliminar} title="Eliminar franja">
                       ×
                     </button>
@@ -174,7 +194,7 @@ export default function HorarioDocente() {
 
                 {/* Botón agregar / formulario */}
                 {diaAbierto !== dia ? (
-                  <button onClick={() => abrirFormDia(dia)} style={{ ...es.btnAgregar, borderColor: DIA_COLOR[dia], color: DIA_COLOR[dia] }}>
+                  <button onClick={() => abrirFormDia(dia)} style={{ ...es.btnAgregar, borderColor: colorDia(dia), color: colorDia(dia) }}>
                     + Agregar clase
                   </button>
                 ) : (
@@ -204,6 +224,19 @@ export default function HorarioDocente() {
                       ))}
                     </select>
 
+                    {salones.length > 0 && (
+                      <select
+                        value={form.salon_id}
+                        onChange={e => setForm(f => ({ ...f, salon_id: e.target.value }))}
+                        style={es.select}
+                      >
+                        <option value="">— Salón (opcional) —</option>
+                        {salones.map(s => (
+                          <option key={s.id} value={s.id}>{s.nombre}</option>
+                        ))}
+                      </select>
+                    )}
+
                     <div style={es.horasRow}>
                       <div style={{ flex: 1 }}>
                         <label style={es.label}>Inicio</label>
@@ -232,7 +265,7 @@ export default function HorarioDocente() {
 
                     <div style={es.formBtns}>
                       <button type="submit" disabled={guardando}
-                        style={{ ...es.btnGuardar, background: DIA_COLOR[dia], opacity: guardando ? 0.7 : 1 }}>
+                        style={{ ...es.btnGuardar, background: colorDia(dia), opacity: guardando ? 0.7 : 1 }}>
                         {guardando ? 'Guardando...' : 'Guardar'}
                       </button>
                       <button type="button" onClick={cerrarForm} style={es.btnCancelar}>
@@ -285,6 +318,7 @@ const es = {
   franjaHora: { display: 'flex', alignItems: 'center', fontSize: 11, color: '#888', marginBottom: 4 },
   franjaGrupo: { fontSize: 12, fontWeight: 800, color: '#333', marginBottom: 2 },
   franjaMateria: { fontSize: 12, color: '#667eea', fontWeight: 600 },
+  franjaSalon: { fontSize: 11, color: '#999', marginTop: 2 },
   btnEliminar: {
     position: 'absolute', top: 6, right: 6,
     background: 'none', border: 'none', cursor: 'pointer',

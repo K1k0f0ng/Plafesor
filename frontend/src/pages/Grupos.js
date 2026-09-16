@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
+import { useAuth } from '../context/AuthContext';
 
 export default function Grupos() {
+  const { usuario } = useAuth();
   const [grupos, setGrupos] = useState([]);
   const [grados, setGrados] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -11,6 +13,7 @@ export default function Grupos() {
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [form, setForm] = useState({ nombre: '', grado: '', ano_lectivo: 2025 });
+  const [editandoId, setEditandoId] = useState(null);
 
   // Nombre a mostrar para un código de grado (ej. '6' → "Sexto"); si el
   // catálogo aún no cargó, muestra el código tal cual como respaldo.
@@ -43,21 +46,38 @@ export default function Grupos() {
     }
   }
 
-  async function handleCrear(e) {
+  async function handleGuardar(e) {
     e.preventDefault();
     setGuardando(true);
     setError('');
     try {
-      await axiosAuth.post('/api/grupos', form);
-      setForm({ nombre: '', grado: '6', ano_lectivo: 2025 });
-      setMensaje('Grupo creado correctamente');
+      if (editandoId) {
+        await axiosAuth.put(`/api/grupos/${editandoId}`, form);
+        setMensaje('Grupo actualizado correctamente');
+      } else {
+        await axiosAuth.post('/api/grupos', form);
+        setMensaje('Grupo creado correctamente');
+      }
+      cancelarEdicion();
       await cargar();
       setTimeout(() => setMensaje(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al crear el grupo');
+      setError(err.response?.data?.error || 'Error al guardar el grupo');
     } finally {
       setGuardando(false);
     }
+  }
+
+  function editarGrupo(g) {
+    setEditandoId(g.id);
+    setForm({ nombre: g.nombre, grado: g.grado, ano_lectivo: g.ano_lectivo });
+    setError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function cancelarEdicion() {
+    setEditandoId(null);
+    setForm({ nombre: '', grado: grados[0]?.codigo || '', ano_lectivo: 2025 });
   }
 
   async function handleEliminar(id) {
@@ -107,12 +127,12 @@ export default function Grupos() {
     <div style={es.pagina}>
       <Navbar titulo="Grupos" />
       <div style={es.contenido}>
-        <button onClick={() => navigate('/dashboard')} style={es.btnVolver}>← Volver al panel</button>
+        <button onClick={() => navigate(usuario.rol === 'admin' ? '/dashboard' : '/dashboard-director')} style={es.btnVolver}>← Volver al panel</button>
 
-        {/* Formulario crear */}
+        {/* Formulario crear / editar */}
         <div style={es.card}>
-          <h3 style={es.cardTitulo}>Crear grupo</h3>
-          <form onSubmit={handleCrear} style={es.form}>
+          <h3 style={es.cardTitulo}>{editandoId ? 'Editar grupo' : 'Crear grupo'}</h3>
+          <form onSubmit={handleGuardar} style={es.form}>
             <input
               type="text" placeholder="Nombre (ej: 9-A) *" required
               value={form.nombre}
@@ -129,8 +149,11 @@ export default function Grupos() {
               style={{ ...es.input, maxWidth: '130px' }}
             />
             <button type="submit" disabled={guardando} style={es.btnPrimario}>
-              {guardando ? 'Guardando...' : '+ Crear grupo'}
+              {guardando ? 'Guardando...' : (editandoId ? 'Guardar cambios' : '+ Crear grupo')}
             </button>
+            {editandoId && (
+              <button type="button" onClick={cancelarEdicion} style={es.btnCancelar}>Cancelar</button>
+            )}
           </form>
           {mensaje && <div style={es.exito}>{mensaje}</div>}
           {error && <div style={es.errorBox}>{error}</div>}
@@ -170,6 +193,9 @@ export default function Grupos() {
                             style={grupoAbierto === g.id ? es.btnVerActivo : es.btnVer}
                           >
                             {grupoAbierto === g.id ? 'Cerrar ▲' : 'Ver alumnos ▼'}
+                          </button>
+                          <button onClick={() => editarGrupo(g)} style={es.btnEditar}>
+                            Editar
                           </button>
                           <button onClick={() => handleEliminar(g.id)} style={es.btnPeligro}>
                             Desactivar
@@ -245,6 +271,8 @@ const es = {
   select: { flex: 1, minWidth: '150px', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e8e8e8', fontSize: '14px', fontFamily: 'inherit', outline: 'none', background: '#fff' },
   btnPrimario: { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   btnPeligro: { background: '#fff0f0', border: '1px solid #ffcdd2', color: '#c62828', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
+  btnEditar: { background: '#f0f0ff', border: '1px solid #c5cae9', color: '#5c6bc0', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
+  btnCancelar: { background: '#f0f2f5', color: '#666', border: 'none', borderRadius: '8px', padding: '10px 18px', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' },
   btnVer: { background: '#f0f0ff', border: '1px solid #c5cae9', color: '#5c6bc0', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
   btnVerActivo: { background: '#667eea', border: '1px solid #667eea', color: '#fff', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
   btnQuitar: { background: '#fff8e1', border: '1px solid #ffe082', color: '#e65100', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },

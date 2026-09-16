@@ -15,6 +15,12 @@ import Dashboard from './pages/Dashboard';
 import Colegios from './pages/Colegios';
 import Periodos from './pages/Periodos';
 import Grupos from './pages/Grupos';
+import SemanaAcademica from './pages/SemanaAcademica';
+import Salones from './pages/Salones';
+import AreasAcademicas from './pages/AreasAcademicas';
+import AsignaturasPorGrado from './pages/AsignaturasPorGrado';
+import ReasignacionCarga from './pages/ReasignacionCarga';
+import TrasladoClases from './pages/TrasladoClases';
 import Docentes from './pages/Docentes';
 import Estudiantes from './pages/Estudiantes';
 import Materias from './pages/Materias';
@@ -53,6 +59,8 @@ import GradosAcademicos from './pages/GradosAcademicos';
 import MotivosRetiro from './pages/MotivosRetiro';
 import PreferenciasNotificacion from './pages/PreferenciasNotificacion';
 import ModulosPortal from './pages/ModulosPortal';
+import Agenda from './pages/Agenda';
+import Personal from './pages/Personal';
 import Citaciones from './pages/Citaciones';
 import MensajesMasivos from './pages/MensajesMasivos';
 
@@ -117,10 +125,16 @@ function AppRoutes() {
       {/* Rutas Admin */}
       <Route path="/dashboard"   element={<RutaPrivada rolesPermitidos={['admin']}><Dashboard /></RutaPrivada>} />
       <Route path="/colegios"    element={<RutaPrivada rolesPermitidos={['admin']}><Colegios /></RutaPrivada>} />
-      <Route path="/grupos"      element={<RutaPrivada rolesPermitidos={['admin']}><Grupos /></RutaPrivada>} />
+      <Route path="/grupos"      element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Grupos /></RutaPrivada>} />
+      <Route path="/semana-academica" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><SemanaAcademica /></RutaPrivada>} />
+      <Route path="/salones"     element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Salones /></RutaPrivada>} />
+      <Route path="/areas-academicas" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><AreasAcademicas /></RutaPrivada>} />
+      <Route path="/asignaturas-por-grado" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><AsignaturasPorGrado /></RutaPrivada>} />
+      <Route path="/reasignacion-carga" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><ReasignacionCarga /></RutaPrivada>} />
+      <Route path="/traslado-clases" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><TrasladoClases /></RutaPrivada>} />
       <Route path="/docentes"    element={<RutaPrivada rolesPermitidos={['admin']}><Docentes /></RutaPrivada>} />
       <Route path="/estudiantes" element={<RutaPrivada rolesPermitidos={['admin']}><Estudiantes /></RutaPrivada>} />
-      <Route path="/materias"    element={<RutaPrivada rolesPermitidos={['admin']}><Materias /></RutaPrivada>} />
+      <Route path="/materias"    element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Materias /></RutaPrivada>} />
       <Route path="/padres"      element={<RutaPrivada rolesPermitidos={['admin']}><Padres /></RutaPrivada>} />
       <Route path="/periodos"    element={<RutaPrivada rolesPermitidos={['admin']}><Periodos /></RutaPrivada>} />
 
@@ -159,6 +173,8 @@ function AppRoutes() {
       <Route path="/mensajeria"         element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin', 'padre']}><Mensajeria /></RutaPrivada>} />
       <Route path="/preferencias-notificacion" element={<RutaPrivada><PreferenciasNotificacion /></RutaPrivada>} />
       <Route path="/modulos-portal"     element={<RutaPrivada rolesPermitidos={['director', 'admin']}><ModulosPortal /></RutaPrivada>} />
+      <Route path="/agenda"             element={<RutaPrivada><Agenda /></RutaPrivada>} />
+      <Route path="/personal"           element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Personal /></RutaPrivada>} />
 
       {/* Rutas Estudiante */}
       <Route path="/dashboard-estudiante" element={<RutaPrivada rolesPermitidos={['estudiante']}><DashboardEstudiante /></RutaPrivada>} />

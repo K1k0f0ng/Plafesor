@@ -68,7 +68,7 @@ async function login(req, res) {
   try {
     const [filas] = await db.query(
       `SELECT u.id, u.nombre, u.email, u.password, u.rol, u.colegio_id, u.activo,
-              u.grupo_dirigido_id, u.foto_url, u.password_actualizada_en,
+              u.grupo_dirigido_id, u.foto_url, u.cargo, u.password_actualizada_en,
               c.dias_rotacion_password
        FROM usuarios u
        LEFT JOIN colegios c ON c.id = u.colegio_id
@@ -109,7 +109,8 @@ async function login(req, res) {
       id: usuario.id,
       rol: usuario.rol,
       colegio_id: usuario.colegio_id,
-      nombre: usuario.nombre
+      nombre: usuario.nombre,
+      cargo: usuario.cargo || null,
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -137,6 +138,7 @@ async function login(req, res) {
         colegio_id: usuario.colegio_id,
         grupo_dirigido_id: usuario.grupo_dirigido_id,
         foto_url: usuario.foto_url,
+        cargo: usuario.cargo || null,
         debe_cambiar_password: debeCambiarPassword,
       }
     });
@@ -150,7 +152,7 @@ async function login(req, res) {
 async function me(req, res) {
   try {
     const [filas] = await db.query(
-      'SELECT id, nombre, email, rol, colegio_id, activo, creado_en, grupo_dirigido_id, foto_url FROM usuarios WHERE id = ?',
+      'SELECT id, nombre, email, rol, colegio_id, activo, creado_en, grupo_dirigido_id, foto_url, cargo FROM usuarios WHERE id = ?',
       [req.usuario.id]
     );
 

@@ -31,7 +31,8 @@ Reglas estrictas:
 2. Usa exclusivamente la información real que te da el docente. Si una sección viene vacía, escribe literalmente "Pendiente de completar por el equipo de apoyo" en esa sección — no la redactes ni la completes con supuestos.
 3. Organiza el documento en las mismas 11 secciones que recibes, con esos títulos exactos, en el mismo orden.
 4. Tono formal, institucional, en español colombiano, orientado a garantizar el aprendizaje, la participación y la permanencia del estudiante.
-5. Al final agrega una nota que diga: "Este documento es un borrador que debe ser revisado, ajustado y firmado por el docente de aula, el docente de apoyo pedagógico, la familia y el estudiante, conforme al Decreto 1421 de 2017."`;
+5. Al final agrega una nota que diga: "Este documento es un borrador que debe ser revisado, ajustado y firmado por el docente de aula, el docente de apoyo pedagógico, la familia y el estudiante, conforme al Decreto 1421 de 2017."
+6. Si además del texto recibes documentos adjuntos (diagnósticos médicos, valoraciones psicológicas, certificados), léelos y usa ÚNICAMENTE lo que esté escrito literalmente en ellos como evidencia real para completar o reforzar las secciones correspondientes (sobre todo INFORMES DE PROFESIONALES DE LA SALUD y CONTEXTO DEL ESTUDIANTE). No infieras un diagnóstico a partir de síntomas descritos ni completes nada que el documento no diga explícitamente. Si un documento adjunto no es legible o no aporta información relevante, ignóralo sin mencionarlo como error.`;
 
 function construirContexto(datos, campos) {
   return campos.map(c => {
@@ -40,7 +41,16 @@ function construirContexto(datos, campos) {
   }).join('\n\n');
 }
 
-async function generarBorradorPiar(datos) {
+// mime → tipo de bloque de contenido que acepta la API de Claude
+const MIME_A_TIPO_BLOQUE = {
+  'application/pdf': 'document',
+  'image/jpeg': 'image',
+  'image/png': 'image',
+  'image/webp': 'image',
+};
+
+// documentosAdjuntos: [{ buffer: Buffer, mimeType: string, nombreOriginal: string }]
+async function generarBorradorPiar(datos, documentosAdjuntos = []) {
   const {
     estudianteNombre, grado, grupoNombre, colegioNombre, anioEscolar,
     docente_apoyo_nombre, docente_apoyo_observaciones,
@@ -55,13 +65,25 @@ async function generarBorradorPiar(datos) {
     construirContexto(datos, CAMPOS_PIAR),
   ].filter(Boolean).join('\n');
 
+  const bloquesDocumentos = documentosAdjuntos
+    .filter(d => MIME_A_TIPO_BLOQUE[d.mimeType])
+    .map(d => ({
+      type: MIME_A_TIPO_BLOQUE[d.mimeType],
+      source: { type: 'base64', media_type: d.mimeType, data: d.buffer.toString('base64') },
+    }));
+
+  const textoInstruccion = `Redacta el Plan Individual de Ajustes Razonables (PIAR) con la información real a continuación:\n\n${contexto}` +
+    (bloquesDocumentos.length > 0
+      ? `\n\nAdemás se adjuntan ${bloquesDocumentos.length} documento(s) de soporte del estudiante — úsalos según la regla 6.`
+      : '');
+
   const resp = await anthropic.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 1400,
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: `Redacta el Plan Individual de Ajustes Razonables (PIAR) con la información real a continuación:\n\n${contexto}`,
+      content: [...bloquesDocumentos, { type: 'text', text: textoInstruccion }],
     }],
   });
 
