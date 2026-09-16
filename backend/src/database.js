@@ -26,6 +26,23 @@ async function agregarColumnaSiFalta(tabla, columna, definicion) {
   if (filas[0].total === 0) {
     await pool.query(`ALTER TABLE ${tabla} ADD COLUMN ${columna} ${definicion}`);
     console.log(`Columna añadida: ${tabla}.${columna}`);
+    return true; // recién se creó — útil para disparar un backfill una sola vez
+  }
+  return false;
+}
+
+// Igual que agregarColumnaSiFalta, pero para restricciones (FOREIGN KEY,
+// UNIQUE) — necesario porque un ALTER TABLE ADD CONSTRAINT sí falla si ya
+// existe (a diferencia de ADD COLUMN, que aquí ya controlamos antes).
+async function agregarConstraintSiFalta(tabla, nombreConstraint, sqlCompleto) {
+  const [filas] = await pool.query(
+    `SELECT COUNT(*) AS total FROM information_schema.TABLE_CONSTRAINTS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?`,
+    [tabla, nombreConstraint]
+  );
+  if (filas[0].total === 0) {
+    await pool.query(sqlCompleto);
+    console.log(`Restricción añadida: ${tabla}.${nombreConstraint}`);
   }
 }
 
@@ -344,6 +361,350 @@ async function migrarEsquema() {
   // docente+grupo+materia, para saber cuántas horas a la semana se dicta esa
   // clase (no reemplaza el horario real, solo la carga planeada).
   await agregarColumnaSiFalta('docente_grupos_materias', 'intensidad_horaria_semanal', 'INT NULL');
+
+  // Módulos desactivados por usuario individual (además de los del colegio
+  // completo) — permite que un mismo cargo (admin/director) tenga menos
+  // acceso que otro, sin crear un rol de permisos nuevo.
+  await agregarColumnaSiFalta('usuarios', 'modulos_desactivados', 'JSON NULL');
+
+  // Campos adicionales de matrícula/SIMAT en estudiantes_datos. Estaban
+  // documentados en database/migrations/2026-08-31_datos_simat_estudiante.sql
+  // pero nunca se aplicaron en producción (esa migración se corrió a mano
+  // y quedó pendiente) — se traen aquí para que se apliquen solas, igual
+  // que el resto del esquema.
+  await agregarColumnaSiFalta('estudiantes_datos', 'codigo_matricula', 'VARCHAR(30) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'lugar_expedicion_documento', 'VARCHAR(100) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'barrio', 'VARCHAR(150) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'ciudad', 'VARCHAR(100) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'comuna', 'VARCHAR(50) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'telefono', 'VARCHAR(20) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'celular', 'VARCHAR(20) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'estudiante_nuevo', 'BOOLEAN NOT NULL DEFAULT TRUE');
+  await agregarColumnaSiFalta('estudiantes_datos', 'colegio_procedencia', 'VARCHAR(200) NULL');
+  await agregarColumnaSiFalta('estudiantes_datos', 'anio_procedencia', 'VARCHAR(20) NULL');
+
+  // ============================================================
+  // A partir de aquí: migraciones de database/migrations/ que quedaron
+  // documentadas pero nunca se confirmó que se aplicaran a mano en
+  // producción (ver el caso real de estudiantes_datos.codigo_matricula,
+  // detectado el 2026-09-17). Se traen aquí para que dejen de depender de
+  // que alguien recuerde correrlas — son seguras de repetir.
+  // ============================================================
+
+  // 2026-07-15_briefing_diario.sql / 2026-07-15_piar.sql
+  await agregarColumnaSiFalta('usuarios', 'requiere_piar', 'BOOLEAN DEFAULT FALSE');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS piar (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      estudiante_id INT NOT NULL,
+      grupo_id INT NOT NULL,
+      colegio_id INT NOT NULL,
+      anio_escolar INT NOT NULL,
+      contexto_estudiante TEXT,
+      valoracion_pedagogica TEXT,
+      informes_salud TEXT,
+      objetivos_metas TEXT,
+      ajustes_curriculares TEXT,
+      ajustes_didacticos TEXT,
+      ajustes_evaluativos TEXT,
+      recursos_apoyos TEXT,
+      proyectos_especificos TEXT,
+      actividades_casa TEXT,
+      seguimiento TEXT,
+      docente_apoyo_nombre VARCHAR(150),
+      docente_apoyo_observaciones TEXT,
+      documento_generado TEXT,
+      estado ENUM('borrador','activo','en_revision','archivado') NOT NULL DEFAULT 'borrador',
+      acta_firmada BOOLEAN DEFAULT FALSE,
+      fecha_acta DATE,
+      elaborado_por INT,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_piar_anio (estudiante_id, anio_escolar),
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+      FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE,
+      FOREIGN KEY (elaborado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS briefing_diario (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      fecha DATE NOT NULL,
+      texto TEXT,
+      estudiantes_riesgo_critico INT DEFAULT 0,
+      grupo_alerta VARCHAR(150),
+      dias_cierre_periodo INT,
+      generado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_briefing_dia (colegio_id, fecha),
+      FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // 2026-08-27_director_grupo.sql — la columna es segura de agregar aquí; las
+  // restricciones (FK/UNIQUE) quedan al final de la función, protegidas en su
+  // propio try/catch (ver comentario allá abajo).
+  await agregarColumnaSiFalta('usuarios', 'grupo_dirigido_id', 'INT NULL');
+
+  // 2026-08-27_periodos_final.sql — MODIFY COLUMN es seguro de repetir (deja
+  // la misma definición si ya estaba aplicada).
+  await pool.query(`ALTER TABLE actividades MODIFY COLUMN periodo ENUM('1','2','3','4') NOT NULL`);
+  await pool.query(`ALTER TABLE periodos_academicos MODIFY COLUMN numero ENUM('1','2','3','4') NOT NULL`);
+  await agregarColumnaSiFalta('periodos_academicos', 'porcentaje', 'DECIMAL(5,2) NOT NULL DEFAULT 0');
+
+  // 2026-08-28_datos_matricula.sql
+  await agregarColumnaSiFalta('usuarios', 'tipo_documento', `ENUM('RC','TI','CC','CE') NULL`);
+  await agregarColumnaSiFalta('usuarios', 'numero_documento', 'VARCHAR(30) NULL');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS estudiantes_datos (
+      estudiante_id INT PRIMARY KEY,
+      fecha_nacimiento DATE NULL,
+      lugar_nacimiento VARCHAR(150),
+      genero ENUM('M','F','Otro') NULL,
+      grupo_sanguineo VARCHAR(5),
+      direccion VARCHAR(255),
+      eps_sisben VARCHAR(150),
+      discapacidad VARCHAR(255),
+      grupo_etnico VARCHAR(150),
+      victima_conflicto BOOLEAN DEFAULT FALSE,
+      actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await agregarColumnaSiFalta('padre_estudiante', 'parentesco', 'VARCHAR(50) NULL');
+
+  // 2026-08-28_anotaciones.sql / citaciones_mensajes_masivos.sql / observaciones_periodo.sql
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS anotaciones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      estudiante_id INT NOT NULL,
+      docente_id INT NOT NULL,
+      grupo_id INT NOT NULL,
+      tipo ENUM('positiva','mejora','neutral') NOT NULL DEFAULT 'neutral',
+      texto TEXT NOT NULL,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (docente_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+      INDEX idx_anotaciones_estudiante (estudiante_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS observaciones_periodo (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      estudiante_id INT NOT NULL,
+      grupo_id INT NOT NULL,
+      colegio_id INT NOT NULL,
+      periodo ENUM('1','2','3','4','final') NOT NULL,
+      texto TEXT NOT NULL,
+      docente_id INT NULL,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_obs_periodo (estudiante_id, periodo),
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+      FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE,
+      FOREIGN KEY (docente_id) REFERENCES usuarios(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS citaciones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      estudiante_id INT NOT NULL,
+      grupo_id INT NOT NULL,
+      colegio_id INT NOT NULL,
+      citado_por INT NOT NULL,
+      motivo TEXT NOT NULL,
+      fecha_cita DATE NULL,
+      hora_cita TIME NULL,
+      lugar VARCHAR(150) NULL,
+      estado ENUM('pendiente','realizada','cancelada') NOT NULL DEFAULT 'pendiente',
+      whatsapp_enviado BOOLEAN NOT NULL DEFAULT FALSE,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+      FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE,
+      FOREIGN KEY (citado_por) REFERENCES usuarios(id) ON DELETE CASCADE,
+      INDEX idx_citaciones_estudiante (estudiante_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mensajes_masivos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      enviado_por INT NOT NULL,
+      alcance ENUM('grupo','grado','colegio') NOT NULL,
+      grupo_id INT NULL,
+      grado VARCHAR(10) NULL,
+      asunto VARCHAR(150) NOT NULL,
+      mensaje TEXT NOT NULL,
+      total_destinatarios INT NOT NULL DEFAULT 0,
+      total_enviados INT NOT NULL DEFAULT 0,
+      total_fallidos INT NOT NULL DEFAULT 0,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE,
+      FOREIGN KEY (enviado_por) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // 2026-08-29_evaluacion_ponderada.sql
+  const porcentajeEsNuevo = await agregarColumnaSiFalta('actividades', 'porcentaje', 'DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER periodo');
+  await agregarColumnaSiFalta('actividades', 'fecha_inicio', 'DATE NULL AFTER porcentaje');
+  await agregarColumnaSiFalta('actividades', 'fecha_cierre', 'DATE NULL AFTER fecha_inicio');
+  if (porcentajeEsNuevo) {
+    // Reparte 100% en partes iguales entre las actividades de cada
+    // (grupo, materia, período) que ya existían antes de esta columna —
+    // solo corre la primera vez que la columna se crea, nunca después.
+    await pool.query(`
+      UPDATE actividades a
+      JOIN (
+        SELECT grupo_id, materia_id, periodo, COUNT(*) AS total
+        FROM actividades
+        GROUP BY grupo_id, materia_id, periodo
+      ) g ON g.grupo_id = a.grupo_id AND g.materia_id = a.materia_id AND g.periodo = a.periodo
+      SET a.porcentaje = ROUND(100 / g.total, 2)
+      WHERE a.porcentaje = 0
+    `);
+    console.log('Backfill aplicado: porcentaje repartido en actividades existentes');
+  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS componentes_evaluacion (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      estudiante_id INT NOT NULL,
+      materia_id INT NOT NULL,
+      grupo_id INT NOT NULL,
+      periodo ENUM('1','2','3','4') NOT NULL,
+      tipo ENUM('autoevaluacion','coevaluacion','heteroevaluacion') NOT NULL,
+      nota DECIMAL(3,1) NOT NULL,
+      actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_componente (estudiante_id, materia_id, grupo_id, periodo, tipo),
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (materia_id) REFERENCES materias(id) ON DELETE CASCADE,
+      FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // 2026-08-29_foto_estudiante.sql
+  await agregarColumnaSiFalta('usuarios', 'foto_url', 'VARCHAR(255) NULL');
+
+  // 2026-08-30_entrega_archivo.sql — MODIFY COLUMN es seguro de repetir.
+  await pool.query(`
+    ALTER TABLE actividades MODIFY COLUMN tipo ENUM(
+      'opcion_multiple','verdadero_falso','ordenar_pasos','completar_espacios',
+      'relacionar_columnas','ordenar_letras','ordenar_palabras','sopa_letras',
+      'entrega_archivo','manual'
+    ) NOT NULL
+  `);
+  await pool.query(`ALTER TABLE resultados_actividades MODIFY COLUMN nota DECIMAL(3,1) NULL`);
+  await agregarColumnaSiFalta('resultados_actividades', 'archivo_url', 'VARCHAR(255) NULL');
+  await agregarColumnaSiFalta('resultados_actividades', 'archivo_nombre_original', 'VARCHAR(255) NULL');
+  await agregarColumnaSiFalta('resultados_actividades', 'comentario_docente', 'TEXT NULL');
+
+  // 2026-08-31_ficha_medica.sql
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fichas_medicas (
+      estudiante_id INT PRIMARY KEY,
+      peso_kg DECIMAL(5,2) NULL,
+      estatura_cm DECIMAL(5,1) NULL,
+      tipo_sangre VARCHAR(5) NULL,
+      nombre_padre VARCHAR(150) NULL,
+      telefono_padre VARCHAR(20) NULL,
+      nombre_madre VARCHAR(150) NULL,
+      telefono_madre VARCHAR(20) NULL,
+      pediatra VARCHAR(150) NULL,
+      telefono_pediatra VARCHAR(20) NULL,
+      clinica_preferencia VARCHAR(200) NULL,
+      eps VARCHAR(150) NULL,
+      numero_afiliacion VARCHAR(50) NULL,
+      seguro_accidentes BOOLEAN NULL,
+      esquema_completo BOOLEAN NULL,
+      refuerzo_5_anios BOOLEAN NULL,
+      fiebre_amarilla BOOLEAN NULL,
+      fecha_vacunacion DATE NULL,
+      enfermedad_ojos BOOLEAN NULL,
+      detalles_ojos VARCHAR(255) NULL,
+      usa_lentes BOOLEAN NULL,
+      usa_protesis BOOLEAN NULL,
+      alergias TEXT NULL,
+      tratamiento_alergias TEXT NULL,
+      cirugias TEXT NULL,
+      convulsiones_perdida_conocimiento BOOLEAN NULL,
+      enfermedad_actual TEXT NULL,
+      medicamentos_prohibidos TEXT NULL,
+      puede_recibir_acetaminofen BOOLEAN NULL,
+      condiciones_especiales TEXT NULL,
+      antecedente_diabetes BOOLEAN NULL,
+      antecedente_cancer BOOLEAN NULL,
+      antecedente_hipertension BOOLEAN NULL,
+      antecedente_cardiovascular BOOLEAN NULL,
+      antecedente_otro VARCHAR(255) NULL,
+      actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (estudiante_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // 2026-08-31_mensajeria_interna.sql
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mensajes_internos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      colegio_id INT NOT NULL,
+      remitente_id INT NOT NULL,
+      hilo_id INT NULL,
+      responde_a_id INT NULL,
+      asunto VARCHAR(200) NOT NULL,
+      cuerpo TEXT NOT NULL,
+      estado ENUM('borrador','enviado') NOT NULL DEFAULT 'enviado',
+      destinatarios_borrador JSON NULL,
+      remitente_eliminado BOOLEAN NOT NULL DEFAULT FALSE,
+      creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE CASCADE,
+      FOREIGN KEY (remitente_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+      FOREIGN KEY (hilo_id) REFERENCES mensajes_internos(id) ON DELETE SET NULL,
+      FOREIGN KEY (responde_a_id) REFERENCES mensajes_internos(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mensajes_destinatarios (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      mensaje_id INT NOT NULL,
+      destinatario_id INT NOT NULL,
+      leido BOOLEAN NOT NULL DEFAULT FALSE,
+      leido_en TIMESTAMP NULL,
+      carpeta ENUM('bandeja_entrada','archivado','eliminado') NOT NULL DEFAULT 'bandeja_entrada',
+      UNIQUE KEY unique_mensaje_destinatario (mensaje_id, destinatario_id),
+      FOREIGN KEY (mensaje_id) REFERENCES mensajes_internos(id) ON DELETE CASCADE,
+      FOREIGN KEY (destinatario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mensajes_adjuntos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      mensaje_id INT NOT NULL,
+      archivo_url VARCHAR(255) NOT NULL,
+      archivo_nombre_original VARCHAR(255) NOT NULL,
+      FOREIGN KEY (mensaje_id) REFERENCES mensajes_internos(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // Restricciones de 2026-08-27_director_grupo.sql, al final y protegidas
+  // aparte: si por no haberse aplicado nunca ya existe más de un docente
+  // marcado como director del mismo grupo, el UNIQUE fallaría — y no debe
+  // tumbar ninguna de las correcciones de arriba, que sí son seguras.
+  try {
+    await agregarConstraintSiFalta('usuarios', 'fk_usuarios_grupo_dirigido',
+      'ALTER TABLE usuarios ADD CONSTRAINT fk_usuarios_grupo_dirigido FOREIGN KEY (grupo_dirigido_id) REFERENCES grupos(id) ON DELETE SET NULL');
+    await agregarConstraintSiFalta('usuarios', 'unique_director_grupo',
+      'ALTER TABLE usuarios ADD CONSTRAINT unique_director_grupo UNIQUE (grupo_dirigido_id)');
+  } catch (err) {
+    console.error(
+      'No se pudo aplicar la restricción de director de grupo único (probablemente hay más de un ' +
+      'docente marcado como director del mismo grupo — hay que corregirlo a mano en la tabla usuarios ' +
+      'antes de que esta restricción se pueda aplicar):', err.message
+    );
+  }
 }
 
 // Prueba de conexión al arrancar

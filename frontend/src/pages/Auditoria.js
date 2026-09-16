@@ -34,6 +34,7 @@ const ACCION_LABELS = {
   clase_definida: 'Clase definida',
   carga_academica_reasignada: 'Carga académica reasignada',
   clases_trasladadas: 'Clases trasladadas masivamente',
+  personal_modulos_editados: 'Módulos de un usuario del sistema actualizados',
 };
 
 const ROL_ETIQUETA = { director: 'Director', admin: 'Administrador', docente: 'Docente' };
@@ -103,6 +104,8 @@ function descripcionDetalle(accion, detalleTexto) {
       return `${d.docente_origen || ''} → ${d.docente_destino || ''} · ${d.reasignadas ?? 0} clase(s)${d.omitidas ? `, ${d.omitidas} omitida(s)` : ''}`;
     case 'clases_trasladadas':
       return `${d.grupo_origen || ''} → ${(d.grupos_destino || []).join(', ')}`;
+    case 'personal_modulos_editados':
+      return `${d.nombre || ''}${d.modulos_desactivados?.length ? `: ${d.modulos_desactivados.join(', ')} desactivado(s)` : ': todos los módulos activos'}`;
     default:
       return '—';
   }

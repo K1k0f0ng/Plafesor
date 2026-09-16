@@ -100,7 +100,7 @@ export default function PreferenciasNotificacion() {
 
         {cargando ? (
           <div style={es.cargando}>Cargando preferencias...</div>
-        ) : categoriasVisibles.length === 0 ? (
+        ) : !preferencias ? null : categoriasVisibles.length === 0 ? (
           <div style={es.card}>
             <p style={{ textAlign: 'center', color: '#999', fontSize: '13px', margin: 0 }}>
               Tu rol no tiene categorías de notificación configurables por ahora.

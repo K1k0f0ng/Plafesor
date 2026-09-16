@@ -43,6 +43,12 @@ export default function Personal() {
   const [editandoId, setEditandoId] = useState(null);
   const [form, setForm] = useState(FORM_VACIO);
 
+  const [modulosPersona, setModulosPersona] = useState(null);
+  const [modulosCatalogo, setModulosCatalogo] = useState([]);
+  const [modulosDesactivadosSel, setModulosDesactivadosSel] = useState(new Set());
+  const [cargandoModulos, setCargandoModulos] = useState(false);
+  const [guardandoModulos, setGuardandoModulos] = useState(false);
+
   async function cargar() {
     setCargando(true);
     try {
@@ -121,6 +127,51 @@ export default function Personal() {
       mostrarMensaje('Usuario desactivado correctamente.');
     } catch (err) {
       setError(err.response?.data?.error || 'Error al desactivar el usuario');
+    }
+  }
+
+  async function abrirModulos(p) {
+    setModulosPersona(p);
+    setCargandoModulos(true);
+    setError('');
+    try {
+      const resp = await axiosAuth.get(`/api/personal/${p.id}/modulos`);
+      setModulosCatalogo(resp.data.data);
+      setModulosDesactivadosSel(new Set(resp.data.data.filter(m => !m.bloqueado_por_colegio && !m.activo).map(m => m.clave)));
+    } catch {
+      setError('No se pudieron cargar los módulos de este usuario.');
+      setModulosPersona(null);
+    } finally {
+      setCargandoModulos(false);
+    }
+  }
+
+  function cerrarModulos() {
+    setModulosPersona(null);
+  }
+
+  function alternarModulo(clave) {
+    setModulosDesactivadosSel(prev => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(clave)) nuevo.delete(clave);
+      else nuevo.add(clave);
+      return nuevo;
+    });
+  }
+
+  async function guardarModulos() {
+    setGuardandoModulos(true);
+    setError('');
+    try {
+      await axiosAuth.put(`/api/personal/${modulosPersona.id}/modulos`, {
+        modulos_desactivados: Array.from(modulosDesactivadosSel),
+      });
+      setModulosPersona(null);
+      mostrarMensaje('Módulos actualizados correctamente.');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al actualizar los módulos');
+    } finally {
+      setGuardandoModulos(false);
     }
   }
 
@@ -283,6 +334,44 @@ export default function Personal() {
         </>
       )}
 
+      {modulosPersona && (
+        <div style={es.modalFondo} onClick={() => !guardandoModulos && cerrarModulos()}>
+          <div style={es.modalCaja} onClick={e => e.stopPropagation()}>
+            <h3 style={es.modalTitulo}>Módulos de {modulosPersona.nombre}</h3>
+            <p style={es.instruccion}>
+              Desmarca lo que esta persona no debería poder usar, sin importar su rol o cargo. Lo que aparece
+              apagado por el colegio no se puede reactivar aquí — se hace desde "Módulos del Portal".
+            </p>
+            {error && <div style={es.errorBox}>{error}</div>}
+            {cargandoModulos ? (
+              <p style={es.textoGris}>Cargando...</p>
+            ) : (
+              <div style={es.modulosLista}>
+                {modulosCatalogo.map(m => (
+                  <label key={m.clave} style={{ ...es.moduloItem, opacity: m.bloqueado_por_colegio ? 0.5 : 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={!modulosDesactivadosSel.has(m.clave) && !m.bloqueado_por_colegio}
+                      disabled={m.bloqueado_por_colegio}
+                      onChange={() => alternarModulo(m.clave)}
+                      style={{ marginRight: '10px' }}
+                    />
+                    {m.nombre}
+                    {m.bloqueado_por_colegio && <span style={es.moduloBloqueado}>Desactivado para todo el colegio</span>}
+                  </label>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button type="button" onClick={cerrarModulos} style={{ ...es.btnSec, flex: 1, textAlign: 'center' }}>Cancelar</button>
+              <button type="button" onClick={guardarModulos} disabled={guardandoModulos || cargandoModulos} style={{ ...es.btnPrimario, flex: 2, opacity: (guardandoModulos || cargandoModulos) ? 0.6 : 1 }}>
+                {guardandoModulos ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={es.contenido}>
         <button onClick={() => navigate(RUTAS_POR_ROL[usuario.rol] || '/login')} style={es.btnVolver}>← Volver al panel</button>
 
@@ -344,6 +433,7 @@ export default function Personal() {
                     <td style={es.td}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button onClick={() => abrirEditar(p)} style={es.btnEditar}>Editar</button>
+                        <button onClick={() => abrirModulos(p)} style={es.btnSecTabla}>Módulos</button>
                         {p.activo && p.id !== usuario.id && (
                           <button onClick={() => desactivar(p)} style={es.btnPeligro}>Desactivar</button>
                         )}
@@ -384,6 +474,15 @@ const es = {
   btnPrimario: { background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   btnExportar: { background: '#f0f7f0', border: '1px solid #c5e1c5', color: '#2e7d32', borderRadius: '8px', padding: '10px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   btnEditar: { background: '#f0f0ff', border: '1px solid #c5cae9', color: '#5c6bc0', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
+  btnSecTabla: { background: '#f5f5f5', border: '1px solid #e0e0e0', color: '#666', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' },
+
+  modalFondo: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' },
+  modalCaja: { background: '#fff', borderRadius: '14px', padding: '26px', width: '100%', maxWidth: '460px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.2)' },
+  modalTitulo: { fontSize: '16px', fontWeight: '800', color: '#1a1a2e', margin: '0 0 8px' },
+  instruccion: { fontSize: '12.5px', color: '#888', lineHeight: 1.6, margin: '0 0 16px' },
+  modulosLista: { display: 'flex', flexDirection: 'column', border: '1px solid #f0f0f0', borderRadius: '8px', overflow: 'hidden' },
+  moduloItem: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', padding: '10px 14px', fontSize: '13.5px', color: '#374151', cursor: 'pointer', borderBottom: '1px solid #f5f5f5' },
+  moduloBloqueado: { fontSize: '11px', color: '#c62828', marginLeft: '8px', fontStyle: 'italic' },
   btnPeligro: { background: '#fff0f0', border: '1px solid #ffcdd2', color: '#c62828', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
   btnSec: { background: '#f0f2f5', color: '#666', border: 'none', borderRadius: '8px', padding: '9px 14px', fontSize: '13px', fontWeight: '600', fontFamily: 'inherit', display: 'inline-block' },
 

@@ -8,6 +8,16 @@
 -- de WhatsApp pero nunca antes documentada aquí (se había aplicado como
 -- ALTER TABLE manual). Cambios de esquema futuros deben registrarse en
 -- database/migrations/, no aplicarse solo en producción.
+--
+-- Actualizado 2026-09-17: resincronizado con todo lo aplicado a producción
+-- vía la auto-migración de backend/src/database.js entre el 2026-08-31 y
+-- esta fecha (grados académicos, motivos de retiro, auditoría, histórico de
+-- notas, años lectivos, rotación de contraseña, preferencias de
+-- notificación, módulos del portal, agenda institucional, personal/cargos,
+-- documentos de PIAR, semana académica, salones, áreas académicas,
+-- asignaturas por colegio, pénsum por grado, intensidad horaria de clases y
+-- módulos por usuario). Cada uno tiene su script correspondiente y fechado
+-- en database/migrations/.
 -- ============================================================
 
 SET NAMES utf8mb4;
@@ -21,6 +31,13 @@ CREATE TABLE IF NOT EXISTS colegios (
   nombre VARCHAR(150) NOT NULL,
   ciudad VARCHAR(100),
   activo BOOLEAN DEFAULT TRUE,
+  lema VARCHAR(255) NULL,
+  -- Rotación de contraseña del personal: cada cuántos días debe cambiarla
+  -- (NULL = desactivada).
+  dias_rotacion_password INT NULL,
+  -- Módulos opcionales que este colegio desactivó para todos sus usuarios
+  -- (ver backend/src/utils/modulos.js para el catálogo completo).
+  modulos_desactivados JSON NULL,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -48,6 +65,20 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- de crear la tabla `grupos` (no puede llevar FOREIGN KEY aquí porque
   -- `grupos` todavía no existe en este punto del script).
   grupo_dirigido_id INT NULL,
+  -- Retiro del estudiante: motivo (catálogo motivos_retiro), detalle libre y fecha.
+  motivo_retiro_id INT NULL,
+  motivo_retiro_detalle VARCHAR(255) NULL,
+  retirado_en DATETIME NULL,
+  -- Rotación de contraseña: cuándo se cambió por última vez (junto con
+  -- colegios.dias_rotacion_password determina si debe cambiarla al entrar).
+  password_actualizada_en DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+  -- Cargo administrativo/directivo (Rector, Coordinador Académico, etc.).
+  -- Es solo un título para mostrar y para "dirigido a" en la Agenda — el
+  -- permiso real lo sigue dando `rol` ('admin' o 'director').
+  cargo VARCHAR(60) NULL,
+  -- Módulos que esta persona en particular no puede usar, además de los que
+  -- ya estén desactivados para todo el colegio (ver colegios.modulos_desactivados).
+  modulos_desactivados JSON NULL,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (colegio_id) REFERENCES colegios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -60,7 +91,13 @@ CREATE TABLE IF NOT EXISTS materias (
   nombre VARCHAR(100) NOT NULL,
   codigo VARCHAR(20) UNIQUE NOT NULL,
   descripcion TEXT,
-  activa BOOLEAN DEFAULT TRUE
+  activa BOOLEAN DEFAULT TRUE,
+  -- Antes las materias eran globales (compartidas por todos los colegios).
+  -- Una fila nueva queda ligada a su colegio y opcionalmente a un área; las
+  -- filas antiguas (colegio_id NULL) siguen como catálogo compartido de
+  -- solo lectura para no romper asignaciones ya existentes.
+  colegio_id INT NULL,
+  area_id INT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Seed: materias base del MEN Colombia
@@ -78,7 +115,10 @@ INSERT IGNORE INTO materias (nombre, codigo) VALUES
 CREATE TABLE IF NOT EXISTS grupos (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(20) NOT NULL,
-  grado ENUM('5','6','7','8','9','10','11') NOT NULL,
+  -- Antes era ENUM('5'..'11'); ahora es texto libre para que cada colegio
+  -- defina su propio catálogo de grados (ver tabla grados_academicos), y el
+  -- valor aquí es el código de ese catálogo (grados_academicos.codigo).
+  grado VARCHAR(30) NOT NULL,
   colegio_id INT NOT NULL,
   ano_lectivo INT DEFAULT 2026,
   activo BOOLEAN DEFAULT TRUE,
@@ -103,6 +143,9 @@ CREATE TABLE IF NOT EXISTS docente_grupos_materias (
   docente_id INT NOT NULL,
   grupo_id INT NOT NULL,
   materia_id INT NOT NULL,
+  -- Horas semanales de esta clase (Definición de Clases) — informativo,
+  -- no reemplaza el horario real de la tabla horarios.
+  intensidad_horaria_semanal INT NULL,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY unique_asignacion (docente_id, grupo_id, materia_id),
   FOREIGN KEY (docente_id) REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -249,8 +292,9 @@ CREATE TABLE IF NOT EXISTS actividades (
   porcentaje DECIMAL(5,2) NOT NULL DEFAULT 0,
   fecha_inicio DATE NULL,
   fecha_cierre DATE NULL,
-  grado_minimo ENUM('5','6','7','8','9','10','11') NOT NULL,
-  grado_maximo ENUM('5','6','7','8','9','10','11') NOT NULL,
+  -- Antes ENUM('5'..'11'); mismo motivo que grupos.grado.
+  grado_minimo VARCHAR(30) NOT NULL,
+  grado_maximo VARCHAR(30) NOT NULL,
   tiempo_limite_minutos INT DEFAULT 30,
   intentos_permitidos INT DEFAULT 3,
   activa BOOLEAN DEFAULT TRUE,
@@ -654,9 +698,11 @@ CREATE TABLE IF NOT EXISTS horarios (
   grupo_id INT NOT NULL,
   materia_id INT NOT NULL,
   dia_semana TINYINT NOT NULL,
-  -- 1=Lunes, 2=Martes, 3=Miércoles, 4=Jueves, 5=Viernes
+  -- Número de día según la Semana Académica configurable del colegio (ver
+  -- tabla semana_academica) — por defecto 1=Lunes .. 5=Viernes.
   hora_inicio TIME NOT NULL,
   hora_fin TIME NOT NULL,
+  salon_id INT NULL,
   activo BOOLEAN DEFAULT TRUE,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY unique_horario (docente_id, grupo_id, materia_id, dia_semana),
@@ -681,6 +727,247 @@ CREATE TABLE IF NOT EXISTS notificaciones (
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY unique_notif_dia (usuario_id, tipo, ref_key),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: colegio_metricas_mensuales
+-- Foto mensual de los totales del colegio, para comparativos reales
+-- ============================================================
+CREATE TABLE IF NOT EXISTS colegio_metricas_mensuales (
+  colegio_id INT NOT NULL,
+  mes CHAR(7) NOT NULL,
+  total_grupos INT NOT NULL DEFAULT 0,
+  total_estudiantes INT NOT NULL DEFAULT 0,
+  total_actividades INT NOT NULL DEFAULT 0,
+  promedio DECIMAL(3,1) NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (colegio_id, mes)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: auditoria
+-- Bitácora institucional de acciones sensibles (notas, estudiantes, etc.)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS auditoria (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  usuario_id INT NULL,
+  usuario_nombre VARCHAR(150) NULL,
+  usuario_rol VARCHAR(20) NULL,
+  accion VARCHAR(60) NOT NULL,
+  entidad VARCHAR(60) NOT NULL,
+  entidad_id INT NULL,
+  detalle TEXT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_auditoria_colegio_fecha (colegio_id, creado_en),
+  INDEX idx_auditoria_entidad (entidad, entidad_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: calificaciones_historicas
+-- Notas de años/sistemas anteriores, cargadas por el admin como registro
+-- ============================================================
+CREATE TABLE IF NOT EXISTS calificaciones_historicas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  estudiante_id INT NOT NULL,
+  ano_lectivo INT NOT NULL,
+  periodo TINYINT NOT NULL,
+  materia_nombre VARCHAR(120) NOT NULL,
+  nota DECIMAL(2,1) NOT NULL,
+  importado_por INT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_hist_estudiante (estudiante_id, ano_lectivo, periodo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: anios_lectivos
+-- ============================================================
+CREATE TABLE IF NOT EXISTS anios_lectivos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  anio INT NOT NULL,
+  estado ENUM('activo', 'cerrado') NOT NULL DEFAULT 'activo',
+  cerrado_en TIMESTAMP NULL,
+  cerrado_por INT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_colegio_anio (colegio_id, anio)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: grados_academicos
+-- Catálogo de grados por colegio (reemplaza el ENUM fijo de grupos.grado)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS grados_academicos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  nivel ENUM('prejardin','jardin','transicion','primaria','secundaria','media') NOT NULL,
+  programa VARCHAR(100) NULL,
+  codigo VARCHAR(30) NOT NULL,
+  nombre VARCHAR(60) NOT NULL,
+  orden INT NOT NULL,
+  intensidad_horaria INT NULL,
+  max_tareas INT NULL,
+  max_evaluaciones INT NULL,
+  activo BOOLEAN DEFAULT TRUE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_colegio_codigo (colegio_id, codigo),
+  INDEX idx_grados_colegio_orden (colegio_id, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: motivos_retiro
+-- Catálogo de motivos de retiro por colegio
+-- ============================================================
+CREATE TABLE IF NOT EXISTS motivos_retiro (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  nombre VARCHAR(100) NOT NULL,
+  orden INT NOT NULL DEFAULT 0,
+  activo BOOLEAN DEFAULT TRUE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_colegio_nombre (colegio_id, nombre),
+  INDEX idx_motivos_retiro_colegio (colegio_id, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: preferencias_notificacion
+-- Sin fila = todo activado; cada usuario decide qué categorías le llegan
+-- ============================================================
+CREATE TABLE IF NOT EXISTS preferencias_notificacion (
+  usuario_id INT PRIMARY KEY,
+  notif_mensajes BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_citaciones BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_riesgo_academico BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_whatsapp BOOLEAN NOT NULL DEFAULT TRUE,
+  actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: eventos_institucionales / eventos_institucionales_fechas
+-- Agenda institucional: eventos generales alimentados por director/admin,
+-- vistos por todo el colegio (o solo los roles/grados a los que van dirigidos)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS eventos_institucionales (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  titulo VARCHAR(150) NOT NULL,
+  categoria VARCHAR(30) NOT NULL,
+  detalle TEXT NULL,
+  dirigido_roles JSON NULL,
+  dirigido_grados JSON NULL,
+  creado_por INT NULL,
+  creado_por_nombre VARCHAR(150) NULL,
+  activo BOOLEAN DEFAULT TRUE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_eventos_colegio (colegio_id, activo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS eventos_institucionales_fechas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  evento_id INT NOT NULL,
+  fecha DATE NOT NULL,
+  hora_inicio TIME NULL,
+  hora_fin TIME NULL,
+  lugar VARCHAR(150) NULL,
+  INDEX idx_eventos_fechas_evento (evento_id),
+  INDEX idx_eventos_fechas_fecha (fecha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: personal_datos
+-- Ficha administrativa del personal (usuarios.rol admin/director)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS personal_datos (
+  usuario_id INT PRIMARY KEY,
+  fecha_nacimiento DATE NULL,
+  telefono_residencial VARCHAR(30) NULL,
+  direccion_residencial VARCHAR(150) NULL,
+  telefono_oficina VARCHAR(30) NULL,
+  direccion_oficina VARCHAR(150) NULL,
+  telefono_celular VARCHAR(30) NULL,
+  telefono_otro VARCHAR(30) NULL,
+  fecha_ingreso_caja_compensacion DATE NULL,
+  fecha_ingreso_institucion DATE NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: piar_documentos
+-- Documentos de soporte del PIAR — se guardan fuera de /uploads (carpeta
+-- privada) por ser datos sensibles de salud; solo se sirven por descarga
+-- protegida. La IA los usa como evidencia real al redactar el borrador.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS piar_documentos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  estudiante_id INT NOT NULL,
+  colegio_id INT NOT NULL,
+  archivo_url VARCHAR(255) NOT NULL,
+  nombre_original VARCHAR(255) NOT NULL,
+  descripcion VARCHAR(255) NULL,
+  subido_por INT NULL,
+  subido_por_nombre VARCHAR(150) NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_piar_documentos_estudiante (estudiante_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: semana_academica
+-- Qué días de la semana dicta clase el colegio y cómo se llaman. El número
+-- de día es el mismo que usa horarios.dia_semana — por defecto lunes a
+-- viernes activos, sábado y domingo creados pero inactivos.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS semana_academica (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  dia_numero TINYINT NOT NULL,
+  nombre VARCHAR(30) NOT NULL,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE KEY unique_colegio_dia (colegio_id, dia_numero)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: salones
+-- Catálogo de espacios físicos del colegio para armar horarios
+-- ============================================================
+CREATE TABLE IF NOT EXISTS salones (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  nombre VARCHAR(60) NOT NULL,
+  permite_clases_simultaneas BOOLEAN NOT NULL DEFAULT FALSE,
+  orden INT NOT NULL DEFAULT 0,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_colegio_nombre (colegio_id, nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: areas_academicas
+-- Agrupan las asignaturas (ej. "Matemáticas" agrupa Álgebra, Cálculo, etc.)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS areas_academicas (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  codigo VARCHAR(10) NOT NULL,
+  nombre VARCHAR(150) NOT NULL,
+  orden INT NOT NULL DEFAULT 0,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_colegio_nombre (colegio_id, nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================
+-- TABLA: grado_materias
+-- Pénsum: qué asignaturas se dictan en cada grado del colegio
+-- ============================================================
+CREATE TABLE IF NOT EXISTS grado_materias (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  colegio_id INT NOT NULL,
+  grado_codigo VARCHAR(20) NOT NULL,
+  materia_id INT NOT NULL,
+  creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_colegio_grado_materia (colegio_id, grado_codigo, materia_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

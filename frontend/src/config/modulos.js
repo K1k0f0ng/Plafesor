@@ -11,4 +11,10 @@ export const MODULOS_DISPONIBLES = [
   { clave: 'planes_mejoramiento',  nombre: 'Planes de Mejoramiento' },
   { clave: 'comparativas',         nombre: 'Comparativas de Períodos' },
   { clave: 'tutor_ia',             nombre: 'Tutor IA (estudiantes)' },
+  { clave: 'auditoria',            nombre: 'Auditoría' },
+  { clave: 'boletines',            nombre: 'Boletines' },
+  { clave: 'institucion_academica',nombre: 'Institución Académica (Grados, Grupos, Semana Académica, Salones)' },
+  { clave: 'asignaturas',          nombre: 'Asignaturas (Áreas, Materias, Carga Académica)' },
+  { clave: 'cargue_historico',     nombre: 'Cargue de Histórico' },
+  { clave: 'cierre_anio_lectivo',  nombre: 'Cierre de Año Lectivo' },
 ];

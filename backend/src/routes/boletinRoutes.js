@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/boletinController');
 const { verificarToken, permitirRoles } = require('../middlewares/auth');
+const { permitirModulo } = require('../utils/modulos');
 
 router.use(verificarToken);
+router.use(permitirModulo('boletines'));
 
 router.get('/mis-grupos',                                  permitirRoles('docente', 'director', 'admin'), ctrl.getMisGrupos);
 router.get('/grupo/:grupo_id/periodo/:periodo',            permitirRoles('docente', 'director', 'admin'), ctrl.getEstudiantesGrupo);

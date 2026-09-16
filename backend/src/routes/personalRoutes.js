@@ -11,5 +11,7 @@ router.post('/',         ctrl.crear);
 router.put('/:id',       ctrl.actualizar);
 router.delete('/:id',    ctrl.eliminar);
 router.post('/:id/foto', ctrl.subirFoto);
+router.get('/:id/modulos', ctrl.obtenerModulos);
+router.put('/:id/modulos', ctrl.actualizarModulos);
 
 module.exports = router;

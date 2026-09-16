@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../database');
 const { verificarToken, permitirRoles } = require('../middlewares/auth');
 const { registrarAuditoria } = require('../utils/auditoria');
+const { permitirModulo } = require('../utils/modulos');
 
 router.use(verificarToken);
 
@@ -45,7 +46,7 @@ router.get('/mis-materias', async (req, res) => {
 });
 
 // GET /api/materias/asignaciones — vista admin/director de las clases definidas (grupo+materia+docente) del colegio
-router.get('/asignaciones', permitirRoles('admin', 'director'), async (req, res) => {
+router.get('/asignaciones', permitirRoles('admin', 'director'), permitirModulo('asignaturas'), async (req, res) => {
   try {
     const [filas] = await db.query(`
       SELECT dgm.id, dgm.intensidad_horaria_semanal,
@@ -67,7 +68,7 @@ router.get('/asignaciones', permitirRoles('admin', 'director'), async (req, res)
 });
 
 // POST /api/materias — crear nueva asignatura (admin o director)
-router.post('/', permitirRoles('admin', 'director'), async (req, res) => {
+router.post('/', permitirRoles('admin', 'director'), permitirModulo('asignaturas'), async (req, res) => {
   const { nombre, codigo, descripcion, area_id } = req.body;
   const colegio_id = req.usuario.colegio_id;
   if (!nombre || !codigo) {
@@ -103,7 +104,7 @@ router.post('/', permitirRoles('admin', 'director'), async (req, res) => {
 });
 
 // PUT /api/materias/:id — editar una asignatura del propio colegio (admin o director)
-router.put('/:id', permitirRoles('admin', 'director'), async (req, res) => {
+router.put('/:id', permitirRoles('admin', 'director'), permitirModulo('asignaturas'), async (req, res) => {
   const { id } = req.params;
   const { nombre, codigo, descripcion, area_id } = req.body;
   const colegio_id = req.usuario.colegio_id;
@@ -156,7 +157,7 @@ router.put('/:id', permitirRoles('admin', 'director'), async (req, res) => {
 });
 
 // DELETE /api/materias/:id — desactivar asignatura del propio colegio (admin o director)
-router.delete('/:id', permitirRoles('admin', 'director'), async (req, res) => {
+router.delete('/:id', permitirRoles('admin', 'director'), permitirModulo('asignaturas'), async (req, res) => {
   const { id } = req.params;
   const colegio_id = req.usuario.colegio_id;
   try {

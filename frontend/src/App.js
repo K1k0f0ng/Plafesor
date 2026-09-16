@@ -125,16 +125,16 @@ function AppRoutes() {
       {/* Rutas Admin */}
       <Route path="/dashboard"   element={<RutaPrivada rolesPermitidos={['admin']}><Dashboard /></RutaPrivada>} />
       <Route path="/colegios"    element={<RutaPrivada rolesPermitidos={['admin']}><Colegios /></RutaPrivada>} />
-      <Route path="/grupos"      element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Grupos /></RutaPrivada>} />
-      <Route path="/semana-academica" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><SemanaAcademica /></RutaPrivada>} />
-      <Route path="/salones"     element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Salones /></RutaPrivada>} />
-      <Route path="/areas-academicas" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><AreasAcademicas /></RutaPrivada>} />
-      <Route path="/asignaturas-por-grado" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><AsignaturasPorGrado /></RutaPrivada>} />
-      <Route path="/reasignacion-carga" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><ReasignacionCarga /></RutaPrivada>} />
-      <Route path="/traslado-clases" element={<RutaPrivada rolesPermitidos={['admin', 'director']}><TrasladoClases /></RutaPrivada>} />
+      <Route path="/grupos"      element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="institucion_academica"><Grupos /></RutaPrivada>} />
+      <Route path="/semana-academica" element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="institucion_academica"><SemanaAcademica /></RutaPrivada>} />
+      <Route path="/salones"     element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="institucion_academica"><Salones /></RutaPrivada>} />
+      <Route path="/areas-academicas" element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="asignaturas"><AreasAcademicas /></RutaPrivada>} />
+      <Route path="/asignaturas-por-grado" element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="asignaturas"><AsignaturasPorGrado /></RutaPrivada>} />
+      <Route path="/reasignacion-carga" element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="asignaturas"><ReasignacionCarga /></RutaPrivada>} />
+      <Route path="/traslado-clases" element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="asignaturas"><TrasladoClases /></RutaPrivada>} />
       <Route path="/docentes"    element={<RutaPrivada rolesPermitidos={['admin']}><Docentes /></RutaPrivada>} />
       <Route path="/estudiantes" element={<RutaPrivada rolesPermitidos={['admin']}><Estudiantes /></RutaPrivada>} />
-      <Route path="/materias"    element={<RutaPrivada rolesPermitidos={['admin', 'director']}><Materias /></RutaPrivada>} />
+      <Route path="/materias"    element={<RutaPrivada rolesPermitidos={['admin', 'director']} modulo="asignaturas"><Materias /></RutaPrivada>} />
       <Route path="/padres"      element={<RutaPrivada rolesPermitidos={['admin']}><Padres /></RutaPrivada>} />
       <Route path="/periodos"    element={<RutaPrivada rolesPermitidos={['admin']}><Periodos /></RutaPrivada>} />
 
@@ -160,14 +160,14 @@ function AppRoutes() {
       <Route path="/revisar-entregas/:id" element={<RutaPrivada rolesPermitidos={['docente']}><RevisarEntregas /></RutaPrivada>} />
       <Route path="/pasar-lista"       element={<RutaPrivada rolesPermitidos={['docente']}><PasarLista /></RutaPrivada>} />
       <Route path="/anotaciones"       element={<RutaPrivada rolesPermitidos={['docente']}><Anotaciones /></RutaPrivada>} />
-      <Route path="/boletin"            element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']}><Boletin /></RutaPrivada>} />
+      <Route path="/boletin"            element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']} modulo="boletines"><Boletin /></RutaPrivada>} />
       <Route path="/citaciones"         element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']} modulo="citaciones"><Citaciones /></RutaPrivada>} />
       <Route path="/mensajes-masivos"   element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']} modulo="mensajes_masivos"><MensajesMasivos /></RutaPrivada>} />
       <Route path="/libro-notas"        element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']}><LibroNotas /></RutaPrivada>} />
-      <Route path="/auditoria"          element={<RutaPrivada rolesPermitidos={['director', 'admin']}><Auditoria /></RutaPrivada>} />
-      <Route path="/cargue-historico"   element={<RutaPrivada rolesPermitidos={['director', 'admin']}><CargueHistorico /></RutaPrivada>} />
-      <Route path="/cierre-anio-lectivo" element={<RutaPrivada rolesPermitidos={['director', 'admin']}><CierreAnioLectivo /></RutaPrivada>} />
-      <Route path="/grados-academicos"  element={<RutaPrivada rolesPermitidos={['director', 'admin']}><GradosAcademicos /></RutaPrivada>} />
+      <Route path="/auditoria"          element={<RutaPrivada rolesPermitidos={['director', 'admin']} modulo="auditoria"><Auditoria /></RutaPrivada>} />
+      <Route path="/cargue-historico"   element={<RutaPrivada rolesPermitidos={['director', 'admin']} modulo="cargue_historico"><CargueHistorico /></RutaPrivada>} />
+      <Route path="/cierre-anio-lectivo" element={<RutaPrivada rolesPermitidos={['director', 'admin']} modulo="cierre_anio_lectivo"><CierreAnioLectivo /></RutaPrivada>} />
+      <Route path="/grados-academicos"  element={<RutaPrivada rolesPermitidos={['director', 'admin']} modulo="institucion_academica"><GradosAcademicos /></RutaPrivada>} />
       <Route path="/motivos-retiro"     element={<RutaPrivada rolesPermitidos={['director', 'admin']}><MotivosRetiro /></RutaPrivada>} />
       <Route path="/piar"               element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin']} modulo="piar"><PIAR /></RutaPrivada>} />
       <Route path="/mensajeria"         element={<RutaPrivada rolesPermitidos={['docente', 'director', 'admin', 'padre']}><Mensajeria /></RutaPrivada>} />

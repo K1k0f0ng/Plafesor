@@ -5,6 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { registrarAuditoria } = require('../utils/auditoria');
 const { CARGOS_VALIDOS } = require('../utils/cargos');
+const { MODULOS_DISPONIBLES, CLAVES_VALIDAS, obtenerModulosDesactivados, obtenerModulosDesactivadosUsuario } = require('../utils/modulos');
 
 const uploadsDirPersonal = path.join(__dirname, '../../uploads/personal');
 if (!fs.existsSync(uploadsDirPersonal)) fs.mkdirSync(uploadsDirPersonal, { recursive: true });
@@ -268,4 +269,68 @@ async function subirFoto(req, res) {
   });
 }
 
-module.exports = { listar, crear, actualizar, eliminar, subirFoto };
+// GET /api/personal/:id/modulos — catálogo completo con estado, marcando
+// cuáles ya vienen apagados para todo el colegio (no se pueden reactivar
+// aquí, solo desde "Módulos del Portal") y cuáles son específicos de esta persona.
+async function obtenerModulos(req, res) {
+  const { id } = req.params;
+  const colegio_id = req.usuario.colegio_id;
+  try {
+    const [[usuario]] = await db.query(
+      `SELECT id FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+      [id, colegio_id]
+    );
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const [delColegio, delUsuario] = await Promise.all([
+      obtenerModulosDesactivados(colegio_id),
+      obtenerModulosDesactivadosUsuario(id),
+    ]);
+
+    const data = MODULOS_DISPONIBLES.map(m => ({
+      ...m,
+      bloqueado_por_colegio: delColegio.includes(m.clave),
+      activo: !delColegio.includes(m.clave) && !delUsuario.includes(m.clave),
+    }));
+
+    res.json({ data });
+  } catch (err) {
+    console.error('Error al obtener los módulos del usuario:', err);
+    res.status(500).json({ error: 'Error al obtener los módulos del usuario' });
+  }
+}
+
+// PUT /api/personal/:id/modulos — body: { modulos_desactivados: ['auditoria', ...] }
+async function actualizarModulos(req, res) {
+  const { id } = req.params;
+  const { modulos_desactivados } = req.body;
+  const colegio_id = req.usuario.colegio_id;
+
+  if (!Array.isArray(modulos_desactivados) || !modulos_desactivados.every(m => CLAVES_VALIDAS.includes(m))) {
+    return res.status(400).json({ error: 'Lista de módulos inválida' });
+  }
+
+  try {
+    const [[usuario]] = await db.query(
+      `SELECT id, nombre FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+      [id, colegio_id]
+    );
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    await db.query('UPDATE usuarios SET modulos_desactivados = ? WHERE id = ?', [JSON.stringify(modulos_desactivados), id]);
+
+    registrarAuditoria({
+      colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'personal_modulos_editados', entidad: 'usuario', entidad_id: parseInt(id),
+      detalle: { nombre: usuario.nombre, modulos_desactivados },
+    });
+
+    res.json({ mensaje: 'Módulos actualizados' });
+  } catch (err) {
+    console.error('Error al actualizar los módulos del usuario:', err);
+    res.status(500).json({ error: 'Error al actualizar los módulos del usuario' });
+  }
+}
+
+module.exports = { listar, crear, actualizar, eliminar, subirFoto, obtenerModulos, actualizarModulos };

@@ -9,7 +9,7 @@ const ACCIONES_VALIDAS = [
   'piar_documento_subido', 'piar_documento_eliminado',
   'grupo_editado', 'semana_academica_editada', 'salon_editado', 'area_academica_editada',
   'asignatura_editada', 'grado_materias_editado', 'clase_definida', 'carga_academica_reasignada',
-  'clases_trasladadas',
+  'clases_trasladadas', 'personal_modulos_editados',
 ];
 
 // GET /api/auditoria/colegio/:colegio_id?accion=&entidad=&desde=&hasta=&pagina=

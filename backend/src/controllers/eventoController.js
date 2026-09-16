@@ -84,19 +84,28 @@ async function listar(req, res) {
   const gestion = req.query.gestion === '1' && ['admin', 'director'].includes(usuario.rol);
 
   try {
-    const [eventos] = await db.query(
+    const [filas] = await db.query(
       `SELECT * FROM eventos_institucionales WHERE colegio_id = ? AND activo = TRUE ORDER BY creado_en DESC`,
       [usuario.colegio_id]
     );
+
+    // dirigido_roles/dirigido_grados son columnas JSON, pero mysql2 no
+    // siempre las entrega ya convertidas a arreglo — se normalizan aquí
+    // antes de filtrar o de mandarlas al frontend (que sí espera arreglos).
+    const eventos = filas.map(e => ({
+      ...e,
+      dirigido_roles: parsearJSON(e.dirigido_roles),
+      dirigido_grados: parsearJSON(e.dirigido_grados),
+    }));
 
     let visibles = eventos;
     if (!gestion) {
       const gradosUsuario = await obtenerGradosDelUsuario(usuario);
       visibles = eventos.filter(e => {
-        const roles = parsearJSON(e.dirigido_roles);
+        const roles = e.dirigido_roles;
         if (roles.length > 0 && !roles.includes(usuario.rol) && !(usuario.cargo && roles.includes(usuario.cargo))) return false;
 
-        const grados = parsearJSON(e.dirigido_grados);
+        const grados = e.dirigido_grados;
         if (grados.length > 0 && gradosUsuario !== null) {
           return gradosUsuario.some(g => grados.includes(g));
         }

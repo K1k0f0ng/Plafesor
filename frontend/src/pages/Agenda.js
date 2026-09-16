@@ -28,6 +28,21 @@ function formatoHora(hora) {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+const DIAS_SEMANA_CORTO = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+function claveFecha(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function esMismoDia(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function nombreMesAnio(d) {
+  const texto = d.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 export default function Agenda() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
@@ -47,6 +62,9 @@ export default function Agenda() {
   const [errorForm, setErrorForm] = useState('');
 
   const [eventoDetalle, setEventoDetalle] = useState(null);
+  const [vista, setVista] = useState('calendario');
+  const [mesActual, setMesActual] = useState(() => { const h = new Date(); return new Date(h.getFullYear(), h.getMonth(), 1); });
+  const [diaSeleccionado, setDiaSeleccionado] = useState(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -105,6 +123,52 @@ export default function Agenda() {
     return grupos;
   }, [filas]);
 
+  // Mismos datos que gruposPorFecha, pero indexados por clave YYYY-MM-DD
+  // para pintar rápido cada celda del calendario.
+  const eventosPorFecha = useMemo(() => {
+    const mapa = new Map();
+    for (const fila of filas) {
+      const clave = String(fila.fecha.fecha).slice(0, 10);
+      if (!mapa.has(clave)) mapa.set(clave, []);
+      mapa.get(clave).push(fila);
+    }
+    return mapa;
+  }, [filas]);
+
+  // Grilla de 6 semanas (siempre) empezando en domingo, con los días del mes
+  // anterior/siguiente que completan la primera y última semana en gris.
+  const diasCalendario = useMemo(() => {
+    const primerDiaMes = mesActual;
+    const diaSemana = primerDiaMes.getDay(); // 0 = domingo
+    const inicio = new Date(primerDiaMes);
+    inicio.setDate(inicio.getDate() - diaSemana);
+
+    const hoy = new Date();
+    const dias = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(inicio);
+      d.setDate(inicio.getDate() + i);
+      dias.push({
+        fecha: d,
+        clave: claveFecha(d),
+        delMes: d.getMonth() === primerDiaMes.getMonth(),
+        esHoy: esMismoDia(d, hoy),
+      });
+    }
+    return dias;
+  }, [mesActual]);
+
+  function mesAnterior() {
+    setMesActual(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  }
+  function mesSiguiente() {
+    setMesActual(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  }
+  function irAHoy() {
+    const h = new Date();
+    setMesActual(new Date(h.getFullYear(), h.getMonth(), 1));
+  }
+
   function abrirCrear() {
     setEditandoId(null);
     setForm(FORM_VACIO);
@@ -118,8 +182,8 @@ export default function Agenda() {
       titulo: evento.titulo,
       categoria: evento.categoria,
       detalle: evento.detalle || '',
-      dirigido_roles: evento.dirigido_roles || [],
-      dirigido_grados: evento.dirigido_grados || [],
+      dirigido_roles: Array.isArray(evento.dirigido_roles) ? evento.dirigido_roles : [],
+      dirigido_grados: Array.isArray(evento.dirigido_grados) ? evento.dirigido_grados : [],
       fechas: evento.fechas.length > 0
         ? evento.fechas.map(f => ({
             fecha: String(f.fecha).slice(0, 10),
@@ -221,6 +285,10 @@ export default function Agenda() {
               {c.nombre}
             </button>
           ))}
+          <div style={es.vistaToggle}>
+            <button onClick={() => setVista('calendario')} style={{ ...es.vistaBtn, ...(vista === 'calendario' ? es.vistaBtnActivo : {}) }}>Calendario</button>
+            <button onClick={() => setVista('lista')} style={{ ...es.vistaBtn, ...(vista === 'lista' ? es.vistaBtnActivo : {}) }}>Lista</button>
+          </div>
         </div>
 
         {error && <div style={es.errorBox}>{error}</div>}
@@ -228,6 +296,49 @@ export default function Agenda() {
 
         {cargando ? (
           <div style={es.cargando}>Cargando agenda...</div>
+        ) : vista === 'calendario' ? (
+          <div style={es.calendarioCard}>
+            <div style={es.calNavBar}>
+              <div style={es.calMesTitulo}>{nombreMesAnio(mesActual)}</div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={irAHoy} style={es.calBtnHoy}>Hoy</button>
+                <button onClick={mesAnterior} style={es.calBtnNav}>‹</button>
+                <button onClick={mesSiguiente} style={es.calBtnNav}>›</button>
+              </div>
+            </div>
+            <div style={es.calScroll}>
+              <div style={es.calGrid}>
+                {DIAS_SEMANA_CORTO.map(d => <div key={d} style={es.calDiaHeader}>{d}</div>)}
+                {diasCalendario.map(({ fecha, clave, delMes, esHoy }) => {
+                  const eventosDia = eventosPorFecha.get(clave) || [];
+                  const visibles = eventosDia.slice(0, 3);
+                  const restantes = eventosDia.length - visibles.length;
+                  return (
+                    <div key={clave} style={{ ...es.calCelda, ...(delMes ? {} : es.calCeldaFuera) }}>
+                      <span style={{ ...es.calNumeroDia, ...(esHoy ? es.calNumeroHoy : {}) }}>{fecha.getDate()}</span>
+                      <div style={es.calEventosLista}>
+                        {visibles.map(({ evento }, i) => (
+                          <button
+                            key={`${evento.id}_${i}`}
+                            onClick={() => setEventoDetalle(evento)}
+                            style={{ ...es.calEventoChip, background: CATEGORIA_COLOR[evento.categoria] || '#999' }}
+                            title={evento.titulo}
+                          >
+                            {evento.titulo}
+                          </button>
+                        ))}
+                        {restantes > 0 && (
+                          <button onClick={() => setDiaSeleccionado({ fecha, eventos: eventosDia })} style={es.calMasBtn}>
+                            +{restantes} más
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         ) : gruposPorFecha.length === 0 ? (
           <div style={es.sinDatos}>No hay eventos programados por ahora.</div>
         ) : (
@@ -331,6 +442,39 @@ export default function Agenda() {
         </>
       )}
 
+      {/* Modal: todos los eventos de un día (cuando hay más de los que caben en la celda) */}
+      {diaSeleccionado && (
+        <>
+          <div onClick={() => setDiaSeleccionado(null)} style={es.fondoModal} />
+          <div style={{ ...es.modal, maxWidth: '420px' }}>
+            <div style={es.modalCabecera}>{formatoFechaLarga(diaSeleccionado.fecha)}</div>
+            <div style={es.modalCuerpo}>
+              {diaSeleccionado.eventos.map(({ evento, fecha }, i) => (
+                <button
+                  key={`${evento.id}_${i}`}
+                  onClick={() => { setEventoDetalle(evento); setDiaSeleccionado(null); }}
+                  style={es.diaListaItem}
+                >
+                  <span style={{ ...es.puntoCategoria, background: CATEGORIA_COLOR[evento.categoria] || '#999' }} />
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: '700', color: '#333', fontSize: '13.5px' }}>{evento.titulo}</div>
+                    <div style={es.metaEvento}>
+                      {(fecha.hora_inicio || fecha.hora_fin) && (
+                        <span>{formatoHora(fecha.hora_inicio)}{fecha.hora_fin ? ` - ${formatoHora(fecha.hora_fin)}` : ''}</span>
+                      )}
+                      {fecha.lugar && <span> · {fecha.lugar}</span>}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div style={es.modalBotones}>
+              <button onClick={() => setDiaSeleccionado(null)} style={es.btnPrimario}>Cerrar</button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Modal: ver detalle de evento (lectura) */}
       {eventoDetalle && (
         <>
@@ -343,8 +487,11 @@ export default function Agenda() {
               {eventoDetalle.detalle && <p style={es.detalleFila}>{eventoDetalle.detalle}</p>}
               <p style={es.detalleFila}>
                 <strong>Dirigido a:</strong>{' '}
-                {(eventoDetalle.dirigido_roles?.length ? eventoDetalle.dirigido_roles.map(r => ROLES_EVENTO.find(x => x.clave === r)?.nombre || r).join(', ') : 'Todo el colegio')}
-                {eventoDetalle.dirigido_grados?.length ? ` · Grados: ${eventoDetalle.dirigido_grados.join(', ')}` : ''}
+                {(Array.isArray(eventoDetalle.dirigido_roles) && eventoDetalle.dirigido_roles.length
+                  ? eventoDetalle.dirigido_roles.map(r => ROLES_EVENTO.find(x => x.clave === r)?.nombre || r).join(', ')
+                  : 'Todo el colegio')}
+                {Array.isArray(eventoDetalle.dirigido_grados) && eventoDetalle.dirigido_grados.length
+                  ? ` · Grados: ${eventoDetalle.dirigido_grados.join(', ')}` : ''}
               </p>
               <table style={es.tablaHorario}>
                 <thead>
@@ -380,8 +527,31 @@ const es = {
   titulo: { fontSize: '20px', fontWeight: '800', color: '#1a1a2e', margin: '8px 0 4px' },
   subtitulo: { fontSize: '13px', color: '#888', margin: 0 },
 
-  filtroRow: { display: 'flex', gap: '8px', margin: '16px 0', flexWrap: 'wrap' },
+  filtroRow: { display: 'flex', gap: '8px', margin: '16px 0', flexWrap: 'wrap', alignItems: 'center' },
   filtroBtn: { padding: '7px 14px', borderRadius: '20px', border: '2px solid #e0e0e0', background: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '600', color: '#666', fontFamily: 'inherit' },
+
+  vistaToggle: { display: 'flex', gap: '4px', background: '#eee', borderRadius: '10px', padding: '3px', marginLeft: 'auto' },
+  vistaBtn: { padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '12px', fontWeight: '700', color: '#666', fontFamily: 'inherit' },
+  vistaBtnActivo: { background: '#fff', color: '#764ba2', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' },
+
+  calendarioCard: { background: '#fff', borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', padding: '18px', overflow: 'hidden' },
+  calNavBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' },
+  calMesTitulo: { fontSize: '17px', fontWeight: '800', color: '#1a1a2e' },
+  calBtnHoy: { background: '#f0f2f5', color: '#555', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '12.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' },
+  calBtnNav: { background: '#f0f2f5', color: '#764ba2', border: 'none', borderRadius: '8px', width: '32px', height: '32px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' },
+
+  calScroll: { overflowX: 'auto' },
+  calGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, minmax(96px, 1fr))', minWidth: '680px' },
+  calDiaHeader: { textAlign: 'center', fontSize: '11.5px', fontWeight: '700', color: '#999', padding: '6px 0', textTransform: 'uppercase', letterSpacing: '0.3px' },
+  calCelda: { minHeight: '96px', border: '1px solid #f0f0f0', padding: '6px', display: 'flex', flexDirection: 'column', gap: '3px' },
+  calCeldaFuera: { background: '#fafafa' },
+  calNumeroDia: { fontSize: '12.5px', fontWeight: '700', color: '#555', alignSelf: 'flex-start', padding: '2px 6px' },
+  calNumeroHoy: { background: '#764ba2', color: '#fff', borderRadius: '999px', padding: '2px 8px' },
+  calEventosLista: { display: 'flex', flexDirection: 'column', gap: '3px' },
+  calEventoChip: { border: 'none', borderRadius: '5px', padding: '3px 6px', fontSize: '10.5px', fontWeight: '600', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  calMasBtn: { border: 'none', background: 'none', color: '#764ba2', fontSize: '10.5px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '2px 4px' },
+
+  diaListaItem: { display: 'flex', alignItems: 'flex-start', gap: '10px', width: '100%', background: 'none', border: 'none', borderBottom: '1px solid #f2edf7', padding: '10px 4px', cursor: 'pointer', fontFamily: 'inherit' },
 
   errorBox: { background: '#fff0f0', color: '#c62828', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px' },
   exito: { background: '#e8f5e9', color: '#2e7d32', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px' },
