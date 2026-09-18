@@ -6,7 +6,7 @@ async function obtener(req, res) {
   const { colegio_id } = req.params;
   const forzar = req.query.forzar === '1' || req.query.forzar === 'true';
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 

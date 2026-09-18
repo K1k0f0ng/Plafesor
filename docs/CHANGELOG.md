@@ -3,6 +3,22 @@
 Registro cronológico de cambios al core del producto. Ver `docs/VERSIONES.md` para la explicación
 del esquema de versionado y `releases/` para el detalle completo de cada versión.
 
+## [Sin publicar] — 2026-09-24
+
+### Agregado
+- **Bienestar y Orientación — Fase 2 (base segura).** Ver `docs/BIENESTAR.md` y
+  `docs/BIENESTAR_MAPA_FUNCIONAL.md`. Rol `orientador`, 15 tablas `bienestar_*`, cifrado AES-256-GCM
+  del texto sensible, control de acceso que bloquea ante cualquier duda, bitácora propia sin
+  contenido, configuración y equipo por colegio, catálogos iniciales. Módulo apagado por defecto.
+- Admin: crear un colegio adicional y cambiar de colegio desde "Mi institución".
+- Menú ☰ en todas las pantallas y ajustes para celular.
+- Padres: reactivar cuentas desactivadas. Docentes: editar calificaciones manuales y entregas ya calificadas.
+
+### Corregido
+- `GET /api/asistencias/alertas/colegio/:id` y `GET /api/periodos/colegio/:id`: usaban el colegio de la
+  URL sin validarlo; ahora usan siempre el de la sesión (fuga entre colegios).
+- Padres: desactivar/vincular/crear quedan limitados al colegio del admin.
+
 ## [2.0.0] — 2026-07-14
 
 ### Agregado

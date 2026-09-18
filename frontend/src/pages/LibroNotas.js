@@ -47,6 +47,7 @@ export default function LibroNotas() {
 
   // Panel calificación manual
   const [panelAbierto, setPanelAbierto] = useState(false);
+  const [editandoId,   setEditandoId]   = useState(null); // id de la evaluación manual que se corrige
   const [tituloEval,   setTituloEval]   = useState('');
   const [porcentajeEval, setPorcentajeEval] = useState('');
   const [notasManual,  setNotasManual]  = useState({});
@@ -88,13 +89,17 @@ export default function LibroNotas() {
     }
   }, [grupoId, materiaId, periodo]);
 
-  function abrirPanel() {
-    // Pre-inicializar notas vacías para cada estudiante
+  // Sin argumento: evaluación nueva. Con una actividad manual: corregirla.
+  function abrirPanel(actividad) {
     const init = {};
-    (libro?.estudiantes || []).forEach(e => { init[e.id] = ''; });
+    (libro?.estudiantes || []).forEach(e => {
+      const actual = actividad ? e.notas[actividad.id] : undefined;
+      init[e.id] = actual !== undefined && actual !== null ? String(actual) : '';
+    });
     setNotasManual(init);
-    setTituloEval('');
-    setPorcentajeEval('');
+    setEditandoId(actividad ? actividad.id : null);
+    setTituloEval(actividad ? actividad.titulo : '');
+    setPorcentajeEval(actividad ? String(parseFloat(actividad.porcentaje)) : '');
     setMensajeOk('');
     setPanelAbierto(true);
   }
@@ -106,6 +111,11 @@ export default function LibroNotas() {
       setError('Indica un porcentaje válido para esta evaluación (mayor a 0 y máximo 100)');
       return;
     }
+    const fueraDeRango = Object.values(notasManual).some(n => n !== '' && (isNaN(parseFloat(n)) || parseFloat(n) < 1 || parseFloat(n) > 5));
+    if (fueraDeRango) {
+      setError('Todas las notas deben estar entre 1.0 y 5.0');
+      return;
+    }
     const calificaciones = Object.entries(notasManual)
       .filter(([, n]) => n !== '' && n !== null)
       .map(([id, nota]) => ({ estudiante_id: parseInt(id), nota: parseFloat(nota) }));
@@ -114,15 +124,27 @@ export default function LibroNotas() {
 
     setGuardando(true); setError('');
     try {
-      await axiosAuth.post('/api/actividades/calificar-manual', {
-        titulo: tituloEval.trim(),
-        grupo_id: parseInt(grupoId),
-        materia_id: parseInt(materiaId),
-        periodo: parseInt(periodo),
-        porcentaje: porcentajeNum,
-        calificaciones,
-      });
-      setMensajeOk(`"${tituloEval}" guardada con ${calificaciones.length} notas`);
+      if (editandoId) {
+        // Al corregir se envían todos los estudiantes: una nota vacía borra la anterior
+        await axiosAuth.put(`/api/actividades/calificar-manual/${editandoId}`, {
+          titulo: tituloEval.trim(),
+          porcentaje: porcentajeNum,
+          calificaciones: Object.entries(notasManual).map(([id, nota]) => ({
+            estudiante_id: parseInt(id), nota: nota === '' ? null : parseFloat(nota),
+          })),
+        });
+        setMensajeOk(`"${tituloEval}" actualizada correctamente`);
+      } else {
+        await axiosAuth.post('/api/actividades/calificar-manual', {
+          titulo: tituloEval.trim(),
+          grupo_id: parseInt(grupoId),
+          materia_id: parseInt(materiaId),
+          periodo: parseInt(periodo),
+          porcentaje: porcentajeNum,
+          calificaciones,
+        });
+        setMensajeOk(`"${tituloEval}" guardada con ${calificaciones.length} notas`);
+      }
       setPanelAbierto(false);
       await cargarLibro(); // refrescar el libro
     } catch (err) {
@@ -225,13 +247,13 @@ export default function LibroNotas() {
           <div style={es.panel}>
             <div style={es.panelHeader}>
               <div>
-                <div style={es.panelTitulo}>Ingresar calificación manual</div>
+                <div style={es.panelTitulo}>{editandoId ? 'Editar calificación manual' : 'Ingresar calificación manual'}</div>
                 <div style={es.panelSub}>{materiaSel?.nombre} · {grupoSel?.grado} {grupoSel?.nombre} · P{periodo}</div>
               </div>
               <button style={es.panelClose} onClick={() => setPanelAbierto(false)}>✕</button>
             </div>
 
-            <div style={{ padding: '20px' }}>
+            <div style={{ padding: '20px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <label style={es.label}>Nombre de la evaluación *</label>
               <input
                 style={es.inputEval}
@@ -298,7 +320,7 @@ export default function LibroNotas() {
                 disabled={!tituloEval.trim() || !porcentajeEval || Object.values(notasManual).every(n => n === '') || guardando}
                 onClick={guardarCalificaciones}
               >
-                {guardando ? 'Guardando...' : 'Guardar calificaciones'}
+                {guardando ? 'Guardando...' : (editandoId ? 'Guardar cambios' : 'Guardar calificaciones')}
               </button>
             </div>
           </div>
@@ -323,7 +345,7 @@ export default function LibroNotas() {
                 <button style={es.panelClose} onClick={() => setPanelComponente(null)}>✕</button>
               </div>
 
-              <div style={{ padding: '20px' }}>
+              <div style={{ padding: '20px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
                 <label style={es.label}>Notas (escala 1.0 – 5.0)</label>
                 <div style={{ ...es.listaEstudiantes, marginTop: '8px' }}>
                   {(libro?.estudiantes || []).map(est => (
@@ -444,7 +466,7 @@ export default function LibroNotas() {
                   </div>
                 )}
                 {esDocente && (
-                  <button style={{ ...es.btnManual, display: 'flex', alignItems: 'center', gap: 6 }} onClick={abrirPanel}>
+                  <button style={{ ...es.btnManual, display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => abrirPanel()}>
                     <IconEdit size={14} />Calificación manual
                   </button>
                 )}
@@ -473,6 +495,12 @@ export default function LibroNotas() {
               </div>
             )}
 
+            {esDocente && libro.actividades.some(a => a.tipo === 'manual' && a.docente_id === usuario?.id) && (
+              <p style={{ fontSize: '12px', color: '#999', margin: '0 0 12px' }}>
+                Para corregir una calificación manual, haz clic en el nombre de la evaluación (marcada con el lápiz).
+              </p>
+            )}
+
             <div style={{ ...es.leyenda, marginTop: 0 }}>
               {COMPONENTES.map(c => (
                 <button
@@ -499,12 +527,24 @@ export default function LibroNotas() {
                   <thead>
                     <tr>
                       <th style={es.thFijo}>Estudiante</th>
-                      {libro.actividades.map(a => (
-                        <th key={a.id} style={es.thAct} title={a.titulo}>
-                          <div style={es.thActTexto}>{a.titulo}</div>
-                          <div style={es.thActSub}>{a.porcentaje}% · {a.total_completadas}/{totalEstudiantes}</div>
-                        </th>
-                      ))}
+                      {libro.actividades.map(a => {
+                        // Solo el docente que la creó puede corregir una evaluación manual
+                        const editable = esDocente && a.tipo === 'manual' && a.docente_id === usuario?.id;
+                        return (
+                          <th
+                            key={a.id}
+                            style={{ ...es.thAct, ...(editable ? { cursor: 'pointer', color: '#e64a19' } : {}) }}
+                            title={editable ? `Clic para editar "${a.titulo}"` : a.titulo}
+                            onClick={editable ? () => abrirPanel(a) : undefined}
+                          >
+                            <div style={es.thActTexto}>
+                              {editable && <IconEdit size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />}
+                              {a.titulo}
+                            </div>
+                            <div style={es.thActSub}>{a.porcentaje}% · {a.total_completadas}/{totalEstudiantes}</div>
+                          </th>
+                        );
+                      })}
                       <th style={{ ...es.thAct, background: '#f3f4ff', color: '#667eea' }}>Actividades (80%)</th>
                       {COMPONENTES.map(c => (
                         <th
@@ -619,7 +659,7 @@ const es = {
   panelFooter:  { padding: '16px 20px', borderTop: '1px solid #f0f0f5', display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: 'auto' },
   inputEval:    { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
   btnLlenar:    { background: 'none', border: 'none', color: '#999', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' },
-  listaEstudiantes: { overflowY: 'auto', maxHeight: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column', gap: '6px' },
+  listaEstudiantes: { display: 'flex', flexDirection: 'column', gap: '6px' },
   filaEst:      { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '6px 0', borderBottom: '1px solid #f5f5f5' },
   nombreEst:    { fontSize: '13px', color: '#333', flex: 1 },
   inputNota:    { width: '72px', padding: '7px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', fontWeight: '700', textAlign: 'center', fontFamily: 'inherit', outline: 'none' },

@@ -13,7 +13,7 @@ async function preguntar(req, res) {
     return res.status(400).json({ error: 'La pregunta no puede estar vacía' });
   }
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes consultar datos de tu colegio' });
   }
 

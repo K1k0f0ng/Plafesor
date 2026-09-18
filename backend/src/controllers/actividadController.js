@@ -740,6 +740,101 @@ async function calificarManual(req, res) {
   }
 }
 
+// PUT /api/actividades/calificar-manual/:id
+// El docente corrige una evaluación manual ya registrada: nombre, porcentaje
+// y notas. Una nota vacía borra la calificación de ese estudiante.
+async function editarCalificacionManual(req, res) {
+  const actividadId = parseInt(req.params.id);
+  const { titulo, porcentaje, calificaciones } = req.body;
+  if (!titulo || !String(titulo).trim() || !Array.isArray(calificaciones)) {
+    return res.status(400).json({ error: 'Faltan campos: titulo, calificaciones' });
+  }
+
+  try {
+    const [[act]] = await db.query(
+      `SELECT a.id, a.titulo, a.tipo, a.docente_id, a.grupo_id, a.materia_id, a.periodo,
+              g.colegio_id, g.ano_lectivo
+       FROM actividades a JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.activa = TRUE`,
+      [actividadId]
+    );
+    if (!act || act.tipo !== 'manual' || act.docente_id !== req.usuario.id) {
+      return res.status(404).json({ error: 'Evaluación no encontrada' });
+    }
+    if (await anioEstaCerrado(act.colegio_id, act.ano_lectivo)) {
+      return res.status(409).json({ error: `El año lectivo ${act.ano_lectivo} ya está cerrado. No se pueden modificar notas de ese año.` });
+    }
+    const errorPorcentaje = await validarPorcentaje(porcentaje, act.grupo_id, act.materia_id, act.periodo, act.id);
+    if (errorPorcentaje) return res.status(400).json({ error: errorPorcentaje });
+
+    // Solo se aceptan estudiantes que pertenecen al grupo de la evaluación
+    const [miembros] = await db.query('SELECT estudiante_id FROM estudiante_grupos WHERE grupo_id = ?', [act.grupo_id]);
+    const enGrupo = new Set(miembros.map(m => m.estudiante_id));
+    const [anteriores] = await db.query(
+      'SELECT estudiante_id, nota FROM resultados_actividades WHERE actividad_id = ?', [act.id]
+    );
+    const notaAnterior = new Map(anteriores.map(r => [r.estudiante_id, parseFloat(r.nota)]));
+
+    const cambios = [];
+    for (const c of calificaciones) {
+      const estId = parseInt(c.estudiante_id);
+      if (!enGrupo.has(estId)) continue;
+      const vacia = c.nota === null || c.nota === undefined || c.nota === '';
+      let nueva = null;
+      if (!vacia) {
+        const n = parseFloat(c.nota);
+        if (isNaN(n) || n < 1.0 || n > 5.0) {
+          return res.status(400).json({ error: 'Todas las notas deben estar entre 1.0 y 5.0' });
+        }
+        nueva = parseFloat(n.toFixed(1));
+      }
+      const anterior = notaAnterior.has(estId) ? notaAnterior.get(estId) : null;
+      if (anterior !== nueva) cambios.push({ estId, anterior, nueva });
+    }
+
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('UPDATE actividades SET titulo = ?, porcentaje = ? WHERE id = ?',
+        [String(titulo).trim(), parseFloat(porcentaje), act.id]);
+      for (const ch of cambios) {
+        // resultados_actividades no tiene UNIQUE (estudiante, actividad), así que
+        // no sirve ON DUPLICATE KEY: se actualiza la fila existente o se inserta una.
+        if (ch.nueva === null) {
+          await conn.query('DELETE FROM resultados_actividades WHERE actividad_id = ? AND estudiante_id = ?', [act.id, ch.estId]);
+        } else if (ch.anterior !== null) {
+          await conn.query('UPDATE resultados_actividades SET nota = ? WHERE actividad_id = ? AND estudiante_id = ?',
+            [ch.nueva, act.id, ch.estId]);
+        } else {
+          await conn.query(
+            `INSERT INTO resultados_actividades (estudiante_id, actividad_id, respuestas, nota, intento_numero)
+             VALUES (?, ?, '{}', ?, 1)`,
+            [ch.estId, act.id, ch.nueva]
+          );
+        }
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    cambios.forEach(ch => registrarAuditoria({
+      colegio_id: act.colegio_id, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'nota_editada', entidad: 'actividad', entidad_id: act.id,
+      detalle: { actividad: act.titulo, estudiante_id: ch.estId, nota_anterior: ch.anterior, nota_nueva: ch.nueva },
+    }));
+
+    res.json({ mensaje: 'Evaluación actualizada', data: { notas_modificadas: cambios.length } });
+  } catch (err) {
+    console.error('Error en editarCalificacionManual:', err);
+    res.status(500).json({ error: 'Error al actualizar la evaluación' });
+  }
+}
+
 // GET /api/actividades/mis-materias?grupo_id=X
 // Materias que el usuario enseña en ese grupo (docente) o todas las materias del grupo (director/admin)
 async function misMaterias(req, res) {
@@ -794,7 +889,7 @@ async function libroCalificaciones(req, res) {
     // Toma el mejor intento de cada estudiante por actividad — si no, los intentos
     // múltiples (intentos_permitidos) se promedian entre sí y distorsionan la nota real
     const [actividades] = await db.query(`
-      SELECT a.id, a.titulo, a.creado_en, a.porcentaje, a.fecha_inicio, a.fecha_cierre,
+      SELECT a.id, a.titulo, a.tipo, a.docente_id, a.creado_en, a.porcentaje, a.fecha_inicio, a.fecha_cierre,
         COUNT(mejores.estudiante_id) AS total_completadas
       FROM actividades a
       LEFT JOIN (
@@ -803,7 +898,7 @@ async function libroCalificaciones(req, res) {
         GROUP BY actividad_id, estudiante_id
       ) mejores ON mejores.actividad_id = a.id
       WHERE a.grupo_id = ? AND a.materia_id = ? AND a.periodo = ? AND a.activa = TRUE
-      GROUP BY a.id, a.titulo, a.creado_en, a.porcentaje, a.fecha_inicio, a.fecha_cierre
+      GROUP BY a.id, a.titulo, a.tipo, a.docente_id, a.creado_en, a.porcentaje, a.fecha_inicio, a.fecha_cierre
       ORDER BY a.creado_en ASC
     `, [grupo_id, materia_id, periodo]);
 
@@ -1349,6 +1444,7 @@ module.exports = {
   misMaterias,
   libroCalificaciones,
   calificarManual,
+  editarCalificacionManual,
   listarBanco,
   copiarDelBanco,
   generarRecuperacion,

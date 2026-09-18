@@ -10,9 +10,11 @@ function FilaEntrega({ entrega, onCalificar }) {
   const [guardando, setGuardando] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [errorLocal, setErrorLocal] = useState('');
+  const [editando, setEditando] = useState(false);
 
   const tieneEntrega = Boolean(entrega.resultado_id);
   const calificada = entrega.nota !== null;
+  const bloqueada = calificada && !editando;
 
   async function descargar() {
     setDescargando(true);
@@ -43,6 +45,7 @@ function FilaEntrega({ entrega, onCalificar }) {
     setGuardando(true);
     try {
       await onCalificar(entrega.resultado_id, notaNum, comentario);
+      setEditando(false);
     } catch (err) {
       setErrorLocal(err.response?.data?.error || 'Error al guardar la calificación');
     } finally {
@@ -65,15 +68,30 @@ function FilaEntrega({ entrega, onCalificar }) {
             <IconDownload size={14} style={{ marginRight: 5, verticalAlign: 'middle' }} />
             {descargando ? 'Descargando...' : (entrega.archivo_nombre_original || 'Descargar archivo')}
           </button>
-          <input type="number" min="1" max="5" step="0.1" value={nota} disabled={calificada}
+          <input type="number" min="1" max="5" step="0.1" value={nota} disabled={bloqueada}
             onChange={e => setNota(e.target.value)} placeholder="Nota" style={re.inputNota} />
-          <textarea value={comentario} disabled={calificada}
+          <textarea value={comentario} disabled={bloqueada}
             onChange={e => setComentario(e.target.value)}
             placeholder="Retroalimentación (opcional)" style={re.textareaComentario} rows={2} />
-          {!calificada && (
-            <button onClick={guardar} disabled={guardando} style={re.btnGuardar}>
-              {guardando ? 'Guardando...' : 'Guardar calificación'}
-            </button>
+          {bloqueada ? (
+            <button onClick={() => setEditando(true)} style={re.btnEditar}>Editar calificación</button>
+          ) : (
+            <>
+              <button onClick={guardar} disabled={guardando} style={re.btnGuardar}>
+                {guardando ? 'Guardando...' : (calificada ? 'Guardar cambios' : 'Guardar calificación')}
+              </button>
+              {calificada && (
+                <button
+                  onClick={() => {
+                    setEditando(false); setErrorLocal('');
+                    setNota(String(entrega.nota)); setComentario(entrega.comentario_docente || '');
+                  }}
+                  style={re.btnEditar}
+                >
+                  Cancelar
+                </button>
+              )}
+            </>
           )}
           {errorLocal && <span style={re.errorLinea}>{errorLocal}</span>}
         </>
@@ -179,6 +197,7 @@ const re = {
   inputNota: { width: 70, padding: '8px 10px', borderRadius: 8, border: '2px solid #e8e8e8', fontSize: 14, fontFamily: 'inherit', outline: 'none' },
   textareaComentario: { flex: '1 1 220px', minWidth: 180, padding: '8px 10px', borderRadius: 8, border: '2px solid #e8e8e8', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' },
   btnGuardar: { background: 'linear-gradient(135deg,#667eea,#764ba2)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  btnEditar: { background: '#fff', border: '1px solid #d8d8ff', color: '#667eea', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   errorLinea: { color: '#c62828', fontSize: 12, width: '100%' },
   textoGris: { color: '#888', fontSize: 14 },
   errorBox: { background: '#fff0f0', color: '#c62828', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 14 },

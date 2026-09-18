@@ -15,6 +15,7 @@ router.get('/porcentaje-disponible', permitirRoles('docente'),                  
 router.get('/componentes',       permitirRoles('docente', 'director', 'admin'), ctrl.getComponentes);
 router.post('/componentes',      permitirRoles('docente'),                      ctrl.guardarComponentes);
 router.post('/calificar-manual', permitirRoles('docente'),                      ctrl.calificarManual);
+router.put('/calificar-manual/:id', permitirRoles('docente'),                   ctrl.editarCalificacionManual);
 router.get('/banco',             permitirRoles('docente'),                      ctrl.listarBanco);
 
 router.post('/entregas/:resultadoId/calificar', permitirRoles('docente'),                  ctrl.calificarEntrega);

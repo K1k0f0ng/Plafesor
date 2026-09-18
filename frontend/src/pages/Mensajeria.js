@@ -12,7 +12,7 @@ const CARPETAS = [
   { valor: 'borradores',      etiqueta: 'Borradores' },
 ];
 
-const ROL_ETIQUETA = { admin: 'Administrador', director: 'Director', docente: 'Docente', padre: 'Padre/Madre' };
+const ROL_ETIQUETA = { admin: 'Administrador', director: 'Director', docente: 'Docente', padre: 'Padre/Madre', estudiante: 'Estudiante' };
 
 // Las columnas JSON de MySQL a veces llegan ya parseadas por mysql2 (array) y
 // a veces como texto — hay que soportar ambos casos.
@@ -57,6 +57,12 @@ function etiquetaCurso(hijo) {
 function SelectorDestinatarios({ contactos, seleccionados, onChange }) {
   const [filtro, setFiltro] = useState('');
   const [grupoFiltro, setGrupoFiltro] = useState('');
+  const [rolFiltro, setRolFiltro] = useState('');
+
+  // Roles presentes en la lista de contactos de este usuario — para poder
+  // separar "Docentes" de "Acudientes" (etc.) en vez de una sola lista
+  // mezclada, cuando hay más de un tipo de contacto disponible.
+  const rolesPresentes = [...new Set(contactos.map(c => c.rol))];
 
   // Grupos disponibles para filtrar, tomados de los hijos de los contactos
   // (solo existen para docentes; en otros roles la lista queda vacía y el
@@ -83,6 +89,7 @@ function SelectorDestinatarios({ contactos, seleccionados, onChange }) {
       return { ...c, hijos };
     })
     .filter(c => {
+      if (rolFiltro && c.rol !== rolFiltro) return false;
       if (c.hijos && grupoIdFiltro && c.hijos.length === 0) return false;
       if (!filtroNorm) return true;
       const matchAcudiente = c.nombre.toLowerCase().includes(filtroNorm);
@@ -99,6 +106,20 @@ function SelectorDestinatarios({ contactos, seleccionados, onChange }) {
 
   return (
     <div>
+      {rolesPresentes.length > 1 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => setRolFiltro('')}
+            style={{ ...cs.btnChico, ...(rolFiltro === '' ? cs.btnChicoActivo : {}) }}>
+            Todos
+          </button>
+          {rolesPresentes.map(r => (
+            <button key={r} type="button" onClick={() => setRolFiltro(r)}
+              style={{ ...cs.btnChico, ...(rolFiltro === r ? cs.btnChicoActivo : {}) }}>
+              {ROL_ETIQUETA[r] || r}
+            </button>
+          ))}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
         <input type="text" value={filtro} onChange={e => setFiltro(e.target.value)}
           placeholder="Buscar por nombre del estudiante o del acudiente..." style={{ ...cs.input, flex: 1, minWidth: 180 }} />
@@ -578,6 +599,7 @@ const cs = {
   btnSecundario: { background: '#f0f0ff', color: '#667eea', border: '1px solid #d8d8ff', borderRadius: 10, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
   btnCancelar: { background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 10, padding: '10px 18px', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', color: '#555' },
   btnChico: { background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#555', whiteSpace: 'nowrap' },
+  btnChicoActivo: { background: '#667eea', borderColor: '#667eea', color: '#fff' },
   btnAdjunto: { background: '#f0f0ff', border: '1px solid #d8d8ff', color: '#667eea', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 20 },
   modal: { background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 560, maxHeight: '86vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' },

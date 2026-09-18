@@ -97,7 +97,7 @@ async function login(req, res) {
     // autenticación solo para esto).
     let debeCambiarPassword = false;
     if (
-      ['admin', 'director', 'docente'].includes(usuario.rol) &&
+      ['admin', 'director', 'docente', 'orientador'].includes(usuario.rol) &&
       usuario.dias_rotacion_password && usuario.password_actualizada_en
     ) {
       const limite = new Date(usuario.password_actualizada_en);
@@ -119,7 +119,7 @@ async function login(req, res) {
 
     // Solo se audita el inicio de sesión de roles con acceso administrativo:
     // registrar cada login de estudiante/docente saturaría la bitácora sin aportar valor.
-    if (['director', 'admin'].includes(usuario.rol) && usuario.colegio_id) {
+    if (['director', 'admin', 'orientador'].includes(usuario.rol) && usuario.colegio_id) {
       registrarAuditoria({
         colegio_id: usuario.colegio_id, usuario_id: usuario.id,
         usuario_nombre: usuario.nombre, usuario_rol: usuario.rol,

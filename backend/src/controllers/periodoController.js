@@ -1,8 +1,10 @@
 const db = require('../database');
 
 // GET /api/periodos/colegio/:colegio_id
+// El colegio se toma siempre de la sesión: el de la URL se ignora para que
+// nadie pueda consultar los periodos de otro colegio cambiando el número.
 async function listar(req, res) {
-  const { colegio_id } = req.params;
+  const colegio_id = req.usuario.colegio_id;
   try {
     const [filas] = await db.query(`
       SELECT id, colegio_id, nombre, numero, porcentaje, ano_lectivo,
@@ -20,7 +22,7 @@ async function listar(req, res) {
 
 // GET /api/periodos/colegio/:colegio_id/activo
 async function obtenerActivo(req, res) {
-  const { colegio_id } = req.params;
+  const colegio_id = req.usuario.colegio_id;
   try {
     const [filas] = await db.query(`
       SELECT id, nombre, numero, ano_lectivo, fecha_inicio, fecha_fin

@@ -15,7 +15,15 @@ auditoría técnica del 14 de julio de 2026 (`AUDITORIA_TECNICA_2026-07-14.md`).
 - El middleware `verificarToken` + `permitirRoles` protege todas las rutas salvo el webhook público
   de WhatsApp (que valida su propio token dentro del controller).
 
-## Aislamiento entre colegios (relevante solo si el hosting llegara a compartirse)
+## Aislamiento entre colegios
+
+> **Actualización 2026-09-24:** `playfesor.co` ya aloja **varios colegios en la misma base de datos**
+> (ver "crear colegio adicional"), así que el aislamiento es obligatorio, no opcional. Regla: el
+> colegio se toma **siempre** de `req.usuario.colegio_id`; un `colegio_id` que llegue en la URL o en
+> el cuerpo nunca se usa sin compararlo con el de la sesión. Se corrigieron `asistencias/alertas` y
+> `periodos`, que no lo validaban. El módulo Bienestar aplica además controles propios (`docs/BIENESTAR.md`).
+
+### Modelo original (instalación de un solo colegio)
 
 Cada instalación single-tenant sirve a un único colegio, así que el riesgo de que un colegio vea
 datos de otro **desaparece por diseño** (no hay "otro colegio" en ese servidor). Aun así, la

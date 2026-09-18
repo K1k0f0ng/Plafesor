@@ -100,8 +100,10 @@ async function resumenGrupo(req, res) {
 
 // GET /api/asistencias/alertas/colegio/:colegio_id
 // Estudiantes con 3 o más ausencias en los últimos 30 días
+// El colegio se toma siempre de la sesión (antes venía de la URL sin validar
+// y un admin/director podía ver los estudiantes con ausencias de otro colegio).
 async function alertasAsistencia(req, res) {
-  const { colegio_id } = req.params;
+  const colegio_id = req.usuario.colegio_id;
 
   try {
     const [filas] = await db.query(`

@@ -4,11 +4,15 @@ import axiosAuth from '../config/axios';
 const TIPO_COLOR = {
   riesgo_critico: '#c62828',
   riesgo_alto:    '#e65100',
+  bienestar_remision: '#5a4fcf',
+  bienestar_urgente:  '#c62828',
 };
 
 const TIPO_LABEL = {
   riesgo_critico: 'CRÍTICO',
   riesgo_alto:    'ALTO',
+  bienestar_remision: 'ORIENTACIÓN',
+  bienestar_urgente:  'URGENTE',
 };
 
 function tiempoRelativo(fecha) {

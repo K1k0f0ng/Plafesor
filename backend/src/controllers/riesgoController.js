@@ -6,7 +6,7 @@ const { scoreNota, scoreAsistencia, scorePendientes, nivelDeScore } = require('.
 async function calcularRiesgo(req, res) {
   const colegioId = parseInt(req.params.colegio_id);
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== colegioId) {
+  if (req.usuario.colegio_id !== colegioId) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -117,7 +117,7 @@ async function calcularRiesgo(req, res) {
 async function obtenerRiesgo(req, res) {
   const colegioId = parseInt(req.params.colegio_id);
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== colegioId) {
+  if (req.usuario.colegio_id !== colegioId) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -167,6 +167,7 @@ async function notificarPadre(req, res) {
         m.nombre          AS materia,
         g.nombre          AS grupo,
         g.grado,
+        g.colegio_id      AS colegio_id,
         c.nombre          AS colegio
       FROM usuarios  u
       JOIN grupos    g ON g.id = ?
@@ -177,6 +178,9 @@ async function notificarPadre(req, res) {
     );
 
     if (!info) return res.status(404).json({ error: 'Estudiante no encontrado' });
+    if (info.colegio_id !== req.usuario.colegio_id) {
+      return res.status(403).json({ error: 'No tienes acceso a este estudiante' });
+    }
     if (!info.telefono_padres) {
       return res.status(422).json({ error: 'Este estudiante no tiene teléfono de padres registrado' });
     }
@@ -221,6 +225,12 @@ async function generarPMI(req, res) {
   }
 
   try {
+    const [[grupoInfo]] = await db.query('SELECT colegio_id FROM grupos WHERE id = ?', [grupo_id]);
+    if (!grupoInfo) return res.status(404).json({ error: 'Grupo no encontrado' });
+    if (grupoInfo.colegio_id !== req.usuario.colegio_id) {
+      return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+    }
+
     const [[info], [stats]] = await Promise.all([
       db.query(
         `SELECT u.nombre AS estudiante, m.nombre AS materia,

@@ -141,6 +141,7 @@ app.use('/api/preferencias-notificacion', require('./src/routes/preferenciaNotif
 app.use('/api/colegio-modulos', require('./src/routes/colegioModulosRoutes'));
 app.use('/api/eventos', require('./src/routes/eventoRoutes'));
 app.use('/api/personal', require('./src/routes/personalRoutes'));
+app.use('/api/bienestar', require('./src/routes/bienestarRoutes'));
 
 // Manejo global de errores
 app.use((err, req, res, next) => {

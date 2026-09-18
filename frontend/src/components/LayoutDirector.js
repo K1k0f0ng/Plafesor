@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import { useEsMovil } from './Layout';
 import NotificacionBell from './NotificacionBell';
 import { Avatar } from './FichaEstudiante';
 import axiosAuth from '../config/axios';
@@ -22,8 +23,14 @@ const ROL_ETIQUETA = {
 export default function LayoutDirector({ colegio, children }) {
   const { usuario, cerrarSesion, actualizarUsuario } = useAuth();
   const navigate = useNavigate();
+  const esMovil = useEsMovil();
+  const location = useLocation();
   const [colapsado, setColapsado] = useState(false);
+  // En celular el menú lateral se abre como cajón encima del contenido
+  const [cajonAbierto, setCajonAbierto] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+
+  useEffect(() => { setCajonAbierto(false); }, [location.pathname]);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [errorFoto, setErrorFoto] = useState('');
   const menuRef = useRef(null);
@@ -65,21 +72,21 @@ export default function LayoutDirector({ colegio, children }) {
   return (
     <div style={es.raiz}>
 
-      <header style={es.barra}>
+      <header style={{ ...es.barra, ...(esMovil ? es.barraMovil : {}) }}>
         <div style={es.barraIzq}>
-          <img src="/logo-icon.png" alt="Playfesor" style={es.logoIcono} />
-          <span style={es.logoTexto}>Playfesor</span>
+          {!esMovil && <img src="/logo-icon.png" alt="Playfesor" style={es.logoIcono} />}
+          {!esMovil && <span style={es.logoTexto}>Playfesor</span>}
 
           <button
-            onClick={() => setColapsado(v => !v)}
-            style={es.btnMenu}
+            onClick={() => (esMovil ? setCajonAbierto(v => !v) : setColapsado(v => !v))}
+            style={{ ...es.btnMenu, ...(esMovil ? { marginLeft: '-6px' } : {}) }}
             title={colapsado ? 'Mostrar menú' : 'Ocultar menú'}
             aria-label={colapsado ? 'Mostrar menú' : 'Ocultar menú'}
           >
             <IconMenu size={19} />
           </button>
 
-          <div style={es.colegioBloque}>
+          <div style={{ ...es.colegioBloque, ...(esMovil ? es.colegioBloqueMovil : {}) }}>
             <span style={es.colegioEscudo}>
               {colegio?.logo_url
                 ? <img src={`${process.env.REACT_APP_API_URL}${colegio.logo_url}`} alt="" style={es.colegioLogoImg} />
@@ -97,11 +104,13 @@ export default function LayoutDirector({ colegio, children }) {
 
           <button onClick={() => setMenuAbierto(v => !v)} style={es.usuarioBtn}>
             <Avatar nombre={usuario?.nombre} fotoUrl={usuario?.foto_url} size={38} />
-            <span style={es.usuarioDatos}>
-              <span style={es.usuarioNombre}>{usuario?.nombre}</span>
-              <span style={es.usuarioRol}>{ROL_ETIQUETA[usuario?.rol] || usuario?.rol}</span>
-            </span>
-            <IconChevronDown size={16} style={{ color: '#9aa3b2' }} />
+            {!esMovil && (
+              <span style={es.usuarioDatos}>
+                <span style={es.usuarioNombre}>{usuario?.nombre}</span>
+                <span style={es.usuarioRol}>{ROL_ETIQUETA[usuario?.rol] || usuario?.rol}</span>
+              </span>
+            )}
+            {!esMovil && <IconChevronDown size={16} style={{ color: '#9aa3b2' }} />}
           </button>
 
           {menuAbierto && (
@@ -143,10 +152,19 @@ export default function LayoutDirector({ colegio, children }) {
         </div>
       </header>
 
-      <div style={es.cuerpo}>
-        <Sidebar variante="director" colapsado={colapsado} />
+      <div style={{ ...es.cuerpo, ...(esMovil ? es.cuerpoMovil : {}) }}>
+        {!esMovil && <Sidebar variante="director" colapsado={colapsado} />}
         <main style={es.principal}>{children}</main>
       </div>
+
+      {esMovil && cajonAbierto && (
+        <>
+          <div style={es.fondoCajon} onClick={() => setCajonAbierto(false)} />
+          <div style={es.cajon}>
+            <Sidebar />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -244,4 +262,13 @@ const es = {
     minWidth: 0,
   },
   principal: { flex: 1, minWidth: 0, maxWidth: '1600px' },
+
+  barraMovil: { padding: '0 12px', gap: '8px' },
+  colegioBloqueMovil: { paddingLeft: '8px', marginLeft: 0 },
+  cuerpoMovil: { padding: '12px 10px 24px' },
+  fondoCajon: { position: 'fixed', inset: 0, background: 'rgba(15,20,40,0.45)', zIndex: 900 },
+  cajon: {
+    position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 901,
+    maxWidth: '85vw', display: 'flex', boxShadow: '4px 0 24px rgba(0,0,0,0.18)',
+  },
 };

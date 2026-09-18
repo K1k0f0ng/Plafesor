@@ -194,7 +194,10 @@ async function listar(req, res) {
 
 // POST /api/padre — crear cuenta de padre y vincular a estudiante (admin)
 async function crear(req, res) {
-  const { nombre, email, password, estudiante_id, colegio_id } = req.body;
+  const { nombre, email, password, estudiante_id } = req.body;
+  // El padre siempre queda en el colegio del admin (antes venía del formulario
+  // y, si se dejaba vacío, la cuenta quedaba sin colegio y no aparecía en la lista)
+  const colegio_id = req.usuario.colegio_id;
   if (!nombre || !email || !password) {
     return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
   }
@@ -202,6 +205,16 @@ async function crear(req, res) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    if (estudiante_id) {
+      const [[est]] = await conn.query(
+        'SELECT id FROM usuarios WHERE id = ? AND rol = "estudiante" AND colegio_id = ?',
+        [estudiante_id, colegio_id]
+      );
+      if (!est) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'Estudiante no encontrado' });
+      }
+    }
     const hash = await bcrypt.hash(password, 10);
     const [result] = await conn.query(
       'INSERT INTO usuarios (nombre, email, password, rol, colegio_id) VALUES (?, ?, ?, "padre", ?)',
@@ -234,6 +247,13 @@ async function vincular(req, res) {
   const { estudiante_id } = req.body;
   if (!estudiante_id) return res.status(400).json({ error: 'estudiante_id es obligatorio' });
   try {
+    // Padre y estudiante deben ser del colegio del admin
+    const [ok] = await db.query(
+      `SELECT COUNT(*) AS n FROM usuarios
+       WHERE colegio_id = ? AND ((id = ? AND rol = 'padre') OR (id = ? AND rol = 'estudiante'))`,
+      [req.usuario.colegio_id, id, estudiante_id]
+    );
+    if (ok[0].n < 2) return res.status(404).json({ error: 'Padre o estudiante no encontrado' });
     await db.query(
       'INSERT IGNORE INTO padre_estudiante (padre_id, estudiante_id) VALUES (?, ?)',
       [id, estudiante_id]
@@ -245,15 +265,25 @@ async function vincular(req, res) {
   }
 }
 
-// DELETE /api/padre/:id — desactivar (admin)
-async function desactivar(req, res) {
-  const { id } = req.params;
+// Activa o desactiva la cuenta de un padre, solo si pertenece al colegio del admin
+async function cambiarEstado(req, res, activo) {
   try {
-    await db.query('UPDATE usuarios SET activo = FALSE WHERE id = ? AND rol = "padre"', [id]);
-    res.json({ mensaje: 'Padre desactivado' });
+    const [r] = await db.query(
+      'UPDATE usuarios SET activo = ? WHERE id = ? AND rol = "padre" AND colegio_id = ?',
+      [activo, req.params.id, req.usuario.colegio_id]
+    );
+    if (r.affectedRows === 0) return res.status(404).json({ error: 'Padre no encontrado' });
+    res.json({ mensaje: activo ? 'Padre reactivado' : 'Padre desactivado' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al desactivar' });
+    console.error('Error al cambiar estado del padre:', err);
+    res.status(500).json({ error: activo ? 'Error al reactivar' : 'Error al desactivar' });
   }
 }
 
-module.exports = { misHijos, listar, crear, vincular, desactivar };
+// DELETE /api/padre/:id — desactivar (admin)
+function desactivar(req, res) { return cambiarEstado(req, res, false); }
+
+// PUT /api/padre/:id/reactivar — volver a activar (admin)
+function reactivar(req, res) { return cambiarEstado(req, res, true); }
+
+module.exports = { misHijos, listar, crear, vincular, desactivar, reactivar };

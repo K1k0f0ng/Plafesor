@@ -8,7 +8,7 @@ import { CARGOS_DISPONIBLES, nombreCargo } from '../config/cargos';
 import { exportarExcel } from '../utils/exportarExcel';
 
 const RUTAS_POR_ROL = { admin: '/dashboard', director: '/dashboard-director' };
-const ROL_LABEL = { admin: 'Administrador', director: 'Director' };
+const ROL_LABEL = { admin: 'Administrador', director: 'Director', orientador: 'Orientador / Psicólogo' };
 
 const FORM_VACIO = {
   nombres: '', apellidos: '', email: '', password: '',
@@ -210,15 +210,22 @@ export default function Personal() {
             <form onSubmit={guardar} style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
               {error && <div style={es.errorBox}>{error}</div>}
 
-              {editandoId && (
+              {editandoId ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
                   <Avatar nombre={`${form.nombres} ${form.apellidos}`} fotoUrl={lista.find(p => p.id === editandoId)?.foto_url} size={48} />
-                  <label style={{ ...es.btnSec, cursor: subiendoFoto ? 'not-allowed' : 'pointer', opacity: subiendoFoto ? 0.6 : 1 }}>
-                    {subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}
-                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-                      onChange={e => handleSubirFoto(editandoId, e.target.files[0])} disabled={subiendoFoto} />
-                  </label>
+                  <div>
+                    <label style={{ ...es.btnSec, cursor: subiendoFoto ? 'not-allowed' : 'pointer', opacity: subiendoFoto ? 0.6 : 1 }}>
+                      {subiendoFoto ? 'Subiendo...' : 'Cambiar foto'}
+                      <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                        onChange={e => handleSubirFoto(editandoId, e.target.files[0])} disabled={subiendoFoto} />
+                    </label>
+                    <p style={{ fontSize: '11px', color: '#999', margin: '4px 0 0' }}>JPG, PNG o WEBP — máximo 2 MB.</p>
+                  </div>
                 </div>
+              ) : (
+                <p style={{ fontSize: '12px', color: '#888', background: '#f7f7fb', borderRadius: '8px', padding: '10px 12px', marginBottom: '18px' }}>
+                  Primero guarda los datos para crear el usuario — la foto se agrega después, editándolo.
+                </p>
               )}
 
               <p style={es.seccionLabel}>Datos personales</p>
@@ -310,8 +317,13 @@ export default function Personal() {
                   <select style={es.input} value={form.rol} onChange={e => setForm({ ...form, rol: e.target.value })}>
                     <option value="admin">Administrador</option>
                     <option value="director">Director</option>
+                    <option value="orientador">Orientador / Psicólogo</option>
                   </select>
-                  <p style={es.ayuda}>Determina qué módulos puede usar dentro de Playfesor.</p>
+                  <p style={es.ayuda}>
+                    {form.rol === 'orientador'
+                      ? 'Para que acceda a Bienestar y Orientación, agrégalo también al equipo desde "Configuración de bienestar".'
+                      : 'Determina qué módulos puede usar dentro de Playfesor.'}
+                  </p>
                 </div>
                 <div style={es.campo}>
                   <label style={es.label}>Cargo</label>

@@ -406,7 +406,7 @@ const es = {
   vacioTexto: { fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '6px' },
   vacioSub: { fontSize: '14px', color: '#888' },
 
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: '20px' },
   card: { background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', display: 'flex', flexDirection: 'column', gap: '14px' },
   cardCabecera: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardTitulo: { fontSize: '17px', fontWeight: '700', color: '#222' },

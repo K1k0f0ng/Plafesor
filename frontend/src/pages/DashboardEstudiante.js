@@ -2,11 +2,52 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
+import { useAuth } from '../context/AuthContext';
 import {
   IconBot, IconClipboard, IconBarChart, IconBookOpen, IconMonitor,
   IconGlobe, IconFlask, IconMap, IconGrid, IconInbox, IconTrendUp,
-  IconStar, IconFlame, IconZap, IconCheckCircle, IconCheck,
+  IconStar, IconFlame, IconZap, IconCheckCircle, IconCheck, IconEdit,
 } from '../components/Icons';
+
+const TIPO_ANOTACION = {
+  positiva: { label: 'Positiva',  color: '#2e7d32', bg: '#e8f5e9', badge: '#4caf50' },
+  mejora:   { label: 'De mejora', color: '#e65100', bg: '#fff3e0', badge: '#ff9800' },
+  neutral:  { label: 'Neutral',   color: '#555',    bg: '#f0f0f0', badge: '#9e9e9e' },
+};
+
+function fechaCorta(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// Anotaciones del observador del estudiante — mismas notas del docente que ya
+// ve el acudiente en su panel (ver DashboardPadre.js), ahora también
+// visibles directamente para el propio estudiante.
+function ListaAnotaciones({ anotaciones }) {
+  if (!anotaciones || anotaciones.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', color: '#bbb', fontSize: '13px', padding: '20px 0' }}>
+        Aún no tienes anotaciones registradas.
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {anotaciones.map(a => {
+        const cfg = TIPO_ANOTACION[a.tipo] || TIPO_ANOTACION.neutral;
+        return (
+          <div key={a.id} style={{ background: '#fafafa', borderRadius: '10px', padding: '12px 14px', borderLeft: `4px solid ${cfg.badge}` }}>
+            <span style={{ display: 'inline-block', borderRadius: '20px', padding: '2px 10px', fontSize: '11px', fontWeight: 700, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+            <p style={{ fontSize: '13px', color: '#333', margin: '8px 0 6px', lineHeight: 1.5 }}>{a.texto}</p>
+            <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
+              {a.nombre_docente} · Grado {a.grado}° {a.nombre_grupo} · {fechaCorta(a.creado_en)}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const COLORES_MATERIA = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a'];
 
@@ -31,22 +72,26 @@ const ICONO_MATERIA = {
 };
 
 export default function DashboardEstudiante() {
+  const { usuario } = useAuth();
   const [materias, setMaterias] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [sinGrupo, setSinGrupo] = useState(false);
   const [planes, setPlanes] = useState([]);
   const [planExpandido, setPlanExpandido] = useState(null);
   const [logrosData, setLogrosData] = useState(null);
+  const [anotaciones, setAnotaciones] = useState([]);
+  const [verAnotaciones, setVerAnotaciones] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     async function cargar() {
       try {
-        const [respMaterias, respActividades, respPlanes, respLogros] = await Promise.allSettled([
+        const [respMaterias, respActividades, respPlanes, respLogros, respAnot] = await Promise.allSettled([
           axiosAuth.get('/api/materias/mis-materias'),
           axiosAuth.get('/api/actividades/estudiante'),
           axiosAuth.get('/api/planes/mis-planes'),
           axiosAuth.get('/api/logros/mis-logros'),
+          axiosAuth.get(`/api/anotaciones/estudiante/${usuario.id}`),
         ]);
 
         const listaMaterias = respMaterias.status === 'fulfilled'
@@ -79,6 +124,9 @@ export default function DashboardEstudiante() {
         if (respLogros.status === 'fulfilled') {
           setLogrosData(respLogros.value.data.data);
         }
+        if (respAnot.status === 'fulfilled') {
+          setAnotaciones(respAnot.value.data.data);
+        }
 
         setSinGrupo(listaMaterias.length === 0);
         setMaterias(combinadas);
@@ -89,7 +137,7 @@ export default function DashboardEstudiante() {
       }
     }
     cargar();
-  }, []);
+  }, [usuario.id]);
 
   return (
     <div style={es.pagina}>
@@ -182,6 +230,26 @@ export default function DashboardEstudiante() {
           </div>
         )}
 
+        {/* Anotaciones del observador del estudiante */}
+        {anotaciones.length > 0 && (
+          <div style={es.anotBanner}>
+            <button onClick={() => setVerAnotaciones(v => !v)} style={es.anotEncabezado}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <IconEdit size={18} style={{ color: '#667eea' }} />
+                <span style={{ fontWeight: 800, fontSize: 15, color: '#333' }}>
+                  Mis anotaciones ({anotaciones.length})
+                </span>
+              </span>
+              <span style={{ color: '#667eea', fontSize: 13, fontWeight: 700 }}>{verAnotaciones ? '▲ Ocultar' : '▼ Ver'}</span>
+            </button>
+            {verAnotaciones && (
+              <div style={{ marginTop: 12 }}>
+                <ListaAnotaciones anotaciones={anotaciones} />
+              </div>
+            )}
+          </div>
+        )}
+
         <p style={es.subtitulo}>Selecciona una materia para ver tus actividades</p>
 
         {cargando ? (
@@ -254,6 +322,14 @@ const es = {
   planBanner: {
     background: '#fff8e1', border: '2px solid #ffe082', borderRadius: 14,
     padding: '16px 20px', marginBottom: 24,
+  },
+  anotBanner: {
+    background: '#fff', borderRadius: 14, padding: '14px 20px', marginBottom: 24,
+    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+  },
+  anotEncabezado: {
+    width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 0,
   },
   planEncabezado: { display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   planTitulo: { fontSize: 15, fontWeight: 800, color: '#e65100', marginBottom: 2 },

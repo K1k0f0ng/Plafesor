@@ -4,6 +4,113 @@ import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { IconSchool } from '../components/Icons';
 import { API } from '../config/api';
+import { useAuth } from '../context/AuthContext';
+
+// Lista de colegios a los que el admin tiene acceso, con la opción de crear
+// uno adicional y pasar a administrarlo.
+function MisColegios() {
+  const { iniciarSesion } = useAuth();
+  const [colegios, setColegios]     = useState([]);
+  const [puedeCrear, setPuedeCrear] = useState(false);
+  const [creando, setCreando]       = useState(false);
+  const [form, setForm]             = useState({ nombre: '', ciudad: '' });
+  const [ocupado, setOcupado]       = useState(false);
+  const [error, setError]           = useState('');
+
+  useEffect(() => {
+    axiosAuth.get('/api/colegios/mis-colegios')
+      .then(r => { setColegios(r.data.data || []); setPuedeCrear(!!r.data.puede_crear); })
+      .catch(() => {});
+  }, []);
+
+  async function entrar(id) {
+    setOcupado(true); setError('');
+    try {
+      const r = await axiosAuth.post(`/api/colegios/${id}/cambiar`);
+      iniciarSesion(r.data.token, r.data.usuario);
+      // Recarga completa para que ningún módulo conserve datos del colegio anterior
+      window.location.assign('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cambiar de colegio');
+      setOcupado(false);
+    }
+  }
+
+  async function handleCrear(e) {
+    e.preventDefault();
+    if (!form.nombre.trim()) return setError('El nombre es obligatorio');
+    setOcupado(true); setError('');
+    try {
+      const r = await axiosAuth.post('/api/colegios', form);
+      await entrar(r.data.data.id);
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo crear el colegio');
+      setOcupado(false);
+    }
+  }
+
+  // Sin colegios adicionales ni permiso para crear: no hay nada que mostrar
+  if (colegios.length <= 1 && !puedeCrear) return null;
+
+  return (
+    <div style={{ ...es.card, marginTop: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <h3 style={{ ...es.cardTitulo, fontSize: '17px', margin: 0 }}>Mis colegios</h3>
+        {puedeCrear && !creando && (
+          <button onClick={() => { setCreando(true); setError(''); }} style={es.btnEditar}>
+            + Crear colegio adicional
+          </button>
+        )}
+      </div>
+
+      {error && <div style={es.errorBox}>{error}</div>}
+
+      {creando && (
+        <form onSubmit={handleCrear} style={{ ...es.form, marginBottom: '18px' }}>
+          <div style={es.formFila}>
+            <div style={es.formGrupo}>
+              <label style={es.label}>Nombre del nuevo colegio *</label>
+              <input style={es.input} value={form.nombre} maxLength={150} required
+                onChange={e => setForm({ ...form, nombre: e.target.value })}
+                placeholder="Nombre oficial del colegio" />
+            </div>
+            <div style={es.formGrupo}>
+              <label style={es.label}>Ciudad</label>
+              <input style={es.input} value={form.ciudad}
+                onChange={e => setForm({ ...form, ciudad: e.target.value })}
+                placeholder="Ciudad o municipio" />
+            </div>
+          </div>
+          <p style={es.ayuda}>Al crearlo entrarás de inmediato como administrador del nuevo colegio. Podrás volver a este desde aquí mismo.</p>
+          <div style={es.formBtns}>
+            <button type="button" onClick={() => { setCreando(false); setError(''); }} style={es.btnCancelar}>Cancelar</button>
+            <button type="submit" disabled={ocupado} style={es.btnPrimario}>
+              {ocupado ? 'Creando...' : 'Crear y entrar'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {colegios.map(c => (
+          <div key={c.id} style={es.filaColegio}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, color: '#333', fontSize: '14px' }}>{c.nombre}</div>
+              {c.ciudad && <div style={{ fontSize: '12px', color: '#999' }}>{c.ciudad}</div>}
+            </div>
+            {c.actual ? (
+              <span style={es.chipActual}>Administrando ahora</span>
+            ) : (
+              <button onClick={() => entrar(c.id)} disabled={ocupado} style={es.btnCancelar}>
+                Entrar como admin
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Colegios() {
   const [colegio, setColegio]     = useState(null);
@@ -181,6 +288,8 @@ export default function Colegios() {
             </form>
           )}
         </div>
+
+        <MisColegios />
       </div>
     </div>
   );
@@ -223,4 +332,6 @@ const es = {
   btnCancelar: { background: '#f0f2f5', color: '#555', border: 'none', borderRadius: '8px', padding: '10px 18px', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' },
   exito: { background: '#e8f5e9', color: '#2e7d32', borderRadius: '8px', padding: '10px 14px', fontSize: '14px', marginBottom: '16px' },
   errorBox: { background: '#fff0f0', color: '#c62828', borderRadius: '8px', padding: '10px 14px', fontSize: '14px', marginBottom: '16px' },
+  filaColegio: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', border: '1px solid #eee', borderRadius: '10px', flexWrap: 'wrap' },
+  chipActual: { background: '#e8eaf6', color: '#3949ab', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', fontWeight: 700 },
 };

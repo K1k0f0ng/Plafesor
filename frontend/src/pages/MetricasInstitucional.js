@@ -321,7 +321,7 @@ const es = {
   barRelleno: { width: '100%', borderRadius: '4px 4px 0 0', transition: 'height 0.3s' },
   barFecha: { fontSize: '10px', color: '#999' },
 
-  dosColumnas: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '0' },
+  dosColumnas: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '20px', marginBottom: '0' },
 
   rankFila: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' },
   rankPos: { fontSize: '18px', flexShrink: 0, width: '26px', textAlign: 'center' },

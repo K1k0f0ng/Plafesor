@@ -90,9 +90,15 @@ async function estudiantesDelGrupo(req, res) {
   }
 }
 
-// POST /api/citaciones — crea la citación y la envía por WhatsApp
+// POST /api/citaciones — crea la citación y la notifica por los canales que
+// el citador elija (WhatsApp y/o un mensaje real en Mensajería Interna).
+// Si no se manda ninguno de los dos, igual se respeta (el padre solo se
+// entera por la campanita de notificaciones y viendo la citación en su panel).
 async function crear(req, res) {
-  const { estudiante_id, grupo_id, motivo, fecha_cita, hora_cita, lugar } = req.body;
+  const {
+    estudiante_id, grupo_id, motivo, fecha_cita, hora_cita, lugar,
+    notificar_whatsapp = true, notificar_mensajeria = false,
+  } = req.body;
   const u = req.usuario;
 
   if (!estudiante_id || !grupo_id || !motivo || !motivo.trim()) {
@@ -126,11 +132,12 @@ async function crear(req, res) {
       [estudiante_id, grupo_id, info.colegio_id, u.id, motivo.trim(), fecha_cita || null, hora_cita || null, lugar?.trim() || null]
     );
 
+    const fechaTxt = formatearFecha(fecha_cita);
+    const horaTxt  = formatearHora(hora_cita);
+
     let whatsappOk = false;
-    const whatsappHabilitado = (await estudiantesConWhatsappActivo([estudiante_id])).length > 0;
+    const whatsappHabilitado = notificar_whatsapp && (await estudiantesConWhatsappActivo([estudiante_id])).length > 0;
     if (info.telefono_padres && whatsappHabilitado) {
-      const fechaTxt = formatearFecha(fecha_cita);
-      const horaTxt  = formatearHora(hora_cita);
       const mensaje = [
         `📅 *Playfesor — Citación*`,
         ``,
@@ -154,16 +161,17 @@ async function crear(req, res) {
       }
     }
 
-    // Notificación in-app para todos los acudientes vinculados (aunque el
-    // WhatsApp falle o el estudiante no tenga teléfono registrado)
+    // Acudientes vinculados al estudiante — se usan tanto para la campanita
+    // (siempre, si el padre no la desactivó) como, si el citador lo eligió,
+    // para un mensaje real en su bandeja de Mensajería Interna.
     const [padres] = await db.query(
       'SELECT padre_id FROM padre_estudiante WHERE estudiante_id = ?',
       [estudiante_id]
     );
+
     if (padres.length) {
       const conNotifActiva = await filtrarPorPreferencia(padres.map(p => p.padre_id), 'notif_citaciones');
       if (conNotifActiva.length) {
-        const fechaTxt = formatearFecha(fecha_cita);
         const valores = conNotifActiva.map(padreId => [
           padreId, 'citacion', `citacion_${result.insertId}`,
           `Citación: ${info.estudiante}`,
@@ -177,7 +185,46 @@ async function crear(req, res) {
       }
     }
 
-    res.status(201).json({ mensaje: 'Citación enviada', data: { id: result.insertId, whatsapp_enviado: whatsappOk } });
+    let mensajeriaOk = false;
+    if (notificar_mensajeria && padres.length) {
+      const cuerpo = [
+        `La institución ${info.colegio} solicita su presencia para una reunión sobre ${info.estudiante} (Grado ${info.grado}° ${info.grupo_nombre}).`,
+        ``,
+        `Motivo: ${motivo.trim()}`,
+        fechaTxt ? `Fecha: ${fechaTxt}${horaTxt ? ` a las ${horaTxt}` : ''}` : null,
+        `Lugar: ${lugar?.trim() || 'Por definir — se le contactará'}`,
+        ``,
+        `Por favor confirme su asistencia comunicándose con la institución.`,
+      ].filter(Boolean).join('\n');
+
+      const conn = await db.getConnection();
+      try {
+        await conn.beginTransaction();
+        for (const { padre_id } of padres) {
+          const [msgResult] = await conn.query(
+            `INSERT INTO mensajes_internos (colegio_id, remitente_id, asunto, cuerpo, estado)
+             VALUES (?, ?, ?, ?, 'enviado')`,
+            [info.colegio_id, u.id, `Citación: ${info.estudiante}`, cuerpo]
+          );
+          await conn.query(
+            'INSERT INTO mensajes_destinatarios (mensaje_id, destinatario_id) VALUES (?, ?)',
+            [msgResult.insertId, padre_id]
+          );
+        }
+        await conn.commit();
+        mensajeriaOk = true;
+      } catch (err) {
+        await conn.rollback();
+        console.error('Error al enviar la citación por mensajería interna:', err);
+      } finally {
+        conn.release();
+      }
+    }
+
+    res.status(201).json({
+      mensaje: 'Citación enviada',
+      data: { id: result.insertId, whatsapp_enviado: whatsappOk, mensajeria_enviada: mensajeriaOk },
+    });
   } catch (err) {
     console.error('Error al crear citación:', err);
     res.status(500).json({ error: 'Error al crear la citación' });

@@ -38,7 +38,7 @@ const uploadDocumentos = multer({
 async function listarPorColegio(req, res) {
   const { colegio_id } = req.params;
 
-  if (req.usuario.rol !== 'admin' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -70,6 +70,15 @@ async function listarPorColegio(req, res) {
 async function obtenerPorEstudiante(req, res) {
   const { estudiante_id } = req.params;
   try {
+    const [[estudiante]] = await db.query(
+      "SELECT colegio_id FROM usuarios WHERE id = ? AND rol = 'estudiante'",
+      [estudiante_id]
+    );
+    if (!estudiante) return res.status(404).json({ error: 'Estudiante no encontrado' });
+    if (estudiante.colegio_id !== req.usuario.colegio_id) {
+      return res.status(403).json({ error: 'No tienes acceso a este estudiante' });
+    }
+
     const anioEscolar = new Date().getFullYear();
     const [[piar]] = await db.query(
       'SELECT * FROM piar WHERE estudiante_id = ? AND anio_escolar = ?',
@@ -94,7 +103,7 @@ async function generarBorrador(req, res) {
     const [[grupo]] = await db.query('SELECT colegio_id, nombre, grado FROM grupos WHERE id = ?', [grupo_id]);
     if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
 
-    if (req.usuario.rol === 'director' && req.usuario.colegio_id !== grupo.colegio_id) {
+    if (req.usuario.colegio_id !== grupo.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este colegio' });
     }
 
@@ -208,7 +217,7 @@ async function guardarEdicion(req, res) {
     const [[piar]] = await db.query('SELECT colegio_id FROM piar WHERE id = ?', [id]);
     if (!piar) return res.status(404).json({ error: 'PIAR no encontrado' });
 
-    if (req.usuario.rol === 'director' && req.usuario.colegio_id !== piar.colegio_id) {
+    if (req.usuario.colegio_id !== piar.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este PIAR' });
     }
 
@@ -233,7 +242,7 @@ async function actualizarEstado(req, res) {
     const [[piar]] = await db.query('SELECT colegio_id FROM piar WHERE id = ?', [id]);
     if (!piar) return res.status(404).json({ error: 'PIAR no encontrado' });
 
-    if (req.usuario.rol === 'director' && req.usuario.colegio_id !== piar.colegio_id) {
+    if (req.usuario.colegio_id !== piar.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este PIAR' });
     }
 
@@ -264,7 +273,7 @@ async function descargarPDF(req, res) {
 
     if (!piar) return res.status(404).json({ error: 'PIAR no encontrado' });
 
-    if (req.usuario.rol === 'director' && req.usuario.colegio_id !== piar.colegio_id) {
+    if (req.usuario.colegio_id !== piar.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este PIAR' });
     }
 

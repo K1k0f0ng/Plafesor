@@ -40,9 +40,17 @@ const MENU = {
     { tipo: 'link', Icono: IconClock,      label: 'Auditoría',      ruta: '/auditoria', modulo: 'auditoria' },
     { tipo: 'link', Icono: IconClipboard,  label: 'Cargue de Histórico', ruta: '/cargue-historico', modulo: 'cargue_historico' },
     { tipo: 'link', Icono: IconCalendar,   label: 'Cierre de Año Lectivo', ruta: '/cierre-anio-lectivo', modulo: 'cierre_anio_lectivo' },
+    { tipo: 'seccion', label: 'Bienestar y Orientación' },
+    { tipo: 'link', Icono: IconShield,     label: 'Configuración de bienestar', ruta: '/bienestar/configuracion' },
     { tipo: 'seccion', label: 'Cuenta' },
     { tipo: 'link', Icono: IconGrid,       label: 'Módulos del Portal', ruta: '/modulos-portal' },
     { tipo: 'link', Icono: IconBell,       label: 'Preferencias de Notificación', ruta: '/preferencias-notificacion' },
+  ],
+  orientador: [
+    { tipo: 'link', Icono: IconHome,       label: 'Panel de orientación', ruta: '/bienestar' },
+    { tipo: 'link', Icono: IconInbox,      label: 'Remisiones',       ruta: '/bienestar/remisiones', bienestar: 'equipo' },
+    { tipo: 'link', Icono: IconClipboard,  label: 'Casos',            ruta: '/bienestar/casos', bienestar: 'equipo' },
+    { tipo: 'link', Icono: IconCalendar,   label: 'Agenda Institucional', ruta: '/agenda' },
   ],
   director: [
     { tipo: 'link', Icono: IconHome,       label: 'Panel',           ruta: '/dashboard-director' },
@@ -60,6 +68,10 @@ const MENU = {
     { tipo: 'link', Icono: IconFileText,   label: 'Materias',     ruta: '/materias', modulo: 'asignaturas' },
     { tipo: 'link', Icono: IconRefresh,    label: 'Reasignación de Carga', ruta: '/reasignacion-carga', modulo: 'asignaturas' },
     { tipo: 'link', Icono: IconLink,       label: 'Traslado de Clases', ruta: '/traslado-clases', modulo: 'asignaturas' },
+    { tipo: 'seccion', label: 'Bienestar y Orientación' },
+    { tipo: 'link', Icono: IconShield,     label: 'Remitir a orientación', ruta: '/bienestar/remitir', bienestar: 'remitir' },
+    { tipo: 'link', Icono: IconClipboard,  label: 'Mis remisiones', ruta: '/bienestar/mis-remisiones', bienestar: 'activo' },
+    { tipo: 'link', Icono: IconUsers,      label: 'Acompañamientos', ruta: '/bienestar/acompanamientos', bienestar: 'activo' },
     { tipo: 'seccion', label: 'Inteligencia Institucional' },
     { tipo: 'link', Icono: IconBarChart,   label: 'Métricas',        ruta: '/metricas' },
     { tipo: 'link', Icono: IconAlertCircle,label: 'Motor de Riesgo', ruta: '/riesgo', badge: 'riesgo', modulo: 'motor_riesgo' },
@@ -92,6 +104,8 @@ const MENU = {
     { tipo: 'link', Icono: IconCheckSquare,label: 'Asistencia',      ruta: '/pasar-lista' },
     { tipo: 'seccion', label: 'Estudiantes' },
     { tipo: 'link', Icono: IconEdit,       label: 'Anotaciones',    ruta: '/anotaciones' },
+    { tipo: 'link', Icono: IconShield,     label: 'Remitir a orientación', ruta: '/bienestar/remitir', bienestar: 'remitir' },
+    { tipo: 'link', Icono: IconClipboard,  label: 'Mis remisiones', ruta: '/bienestar/mis-remisiones', bienestar: 'activo' },
     { tipo: 'seccion', label: 'Reportes' },
     { tipo: 'link', Icono: IconFileText,   label: 'Boletines',      ruta: '/boletin', modulo: 'boletines' },
     { tipo: 'link', Icono: IconBookOpen,   label: 'Libro de Notas', ruta: '/libro-notas' },
@@ -126,6 +140,7 @@ const ROL_ETIQUETA = {
   docente:    'Docente',
   estudiante: 'Estudiante',
   padre:      'Padre / Madre',
+  orientador: 'Orientación',
 };
 
 export default function Sidebar({ variante, colapsado = false }) {
@@ -133,9 +148,25 @@ export default function Sidebar({ variante, colapsado = false }) {
   const navigate  = useNavigate();
   const location  = useLocation();
   const menuRol   = MENU[usuario?.rol] || [];
+  // Estado del módulo Bienestar: decide si mostrar "Remitir a orientación", etc.
+  const [bienestar, setBienestar] = useState(null);
+  const usaBienestar = menuRol.some(item => item.bienestar);
+  useEffect(() => {
+    if (!usaBienestar) return;
+    axiosAuth.get('/api/bienestar/estado')
+      .then(r => setBienestar(r.data.data))
+      .catch(() => setBienestar(null));
+  }, [usaBienestar, usuario?.id]);
+  const visiblePorBienestar = (item) => {
+    if (!item.bienestar) return true;
+    if (item.bienestar === 'remitir') return !!bienestar?.puede_remitir;
+    if (item.bienestar === 'equipo') return !!(bienestar?.activo && bienestar?.es_equipo);
+    return !!bienestar?.activo;
+  };
   const menuFiltrado = menuRol
     .filter(item => usuario?.grupo_dirigido_id || !item.soloDirectorGrupo)
-    .filter(item => !item.modulo || !modulosDesactivados?.includes(item.modulo));
+    .filter(item => !item.modulo || !modulosDesactivados?.includes(item.modulo))
+    .filter(visiblePorBienestar);
   // Evita dejar un título de sección "huérfano" cuando todos sus enlaces
   // quedaron ocultos por un módulo desactivado.
   const menu = menuFiltrado.filter((item, i) =>

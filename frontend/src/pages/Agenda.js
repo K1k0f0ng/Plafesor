@@ -8,7 +8,7 @@ import { CATEGORIAS_EVENTO, CATEGORIA_COLOR, ROLES_EVENTO, nombreCategoria } fro
 
 const RUTAS_POR_ROL = {
   admin: '/dashboard', docente: '/dashboard-docente', estudiante: '/dashboard-estudiante',
-  director: '/dashboard-director', padre: '/dashboard-padre',
+  director: '/dashboard-director', padre: '/dashboard-padre', orientador: '/bienestar',
 };
 
 const FILA_VACIA = { fecha: '', hora_inicio: '', hora_fin: '', lugar: '' };
@@ -44,9 +44,9 @@ function nombreMesAnio(d) {
 }
 
 export default function Agenda() {
-  const { usuario } = useAuth();
+  const { usuario, modulosDesactivados } = useAuth();
   const navigate = useNavigate();
-  const puedeGestionar = ['admin', 'director'].includes(usuario.rol);
+  const puedeGestionar = ['admin', 'director'].includes(usuario.rol) && !modulosDesactivados.includes('agenda_gestion');
 
   const [eventos, setEventos] = useState([]);
   const [grados, setGrados] = useState([]);
@@ -510,6 +510,14 @@ export default function Agenda() {
               </table>
             </div>
             <div style={es.modalBotones}>
+              {puedeGestionar && (
+                <button
+                  onClick={() => { const ev = eventoDetalle; setEventoDetalle(null); abrirEditar(ev); }}
+                  style={es.btnMiniSec}
+                >
+                  Editar
+                </button>
+              )}
               <button onClick={() => setEventoDetalle(null)} style={es.btnPrimario}>Cerrar</button>
             </div>
           </div>

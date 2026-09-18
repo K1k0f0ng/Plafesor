@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axiosAuth from '../config/axios';
 import { useAuth } from '../context/AuthContext';
@@ -375,6 +376,7 @@ function ListaCitaciones({ citaciones }) {
 
 export default function DashboardPadre() {
   const { usuario } = useAuth();
+  const navigate = useNavigate();
   const [hijos,       setHijos]       = useState([]);
   const [hijoIdx,     setHijoIdx]     = useState(0);
   const [tab,         setTab]         = useState('resumen'); // 'resumen' | 'historial'
@@ -483,6 +485,9 @@ export default function DashboardPadre() {
                       Riesgo {NIVEL_RIESGO[hijo.riesgo.nivel]?.label}
                     </span>
                   )}
+                  <button onClick={() => navigate(`/historial/${hijo.id}`)} style={es.btnFichaMedica}>
+                    Ficha médica
+                  </button>
                 </div>
 
                 {/* Tabs: Resumen / Historial / Estadísticas */}
@@ -658,6 +663,7 @@ const es = {
   hijoNombre: { fontSize: '18px', fontWeight: '800', color: '#333', margin: 0 },
   hijoGrupo:  { fontSize: '13px', color: '#888', margin: '2px 0 0' },
   riesgoBadge:{ padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', marginLeft: 'auto' },
+  btnFichaMedica: { background: '#fff0f0', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', marginLeft: 'auto' },
 
   tabs:           { display: 'flex', gap: '8px', marginBottom: '20px' },
   tab:            { flex: 1, padding: '10px 16px', borderRadius: '10px', border: '2px solid #e0e0e0', background: '#fafafa', color: '#888', cursor: 'pointer', fontWeight: '600', fontSize: '14px', fontFamily: 'inherit', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' },

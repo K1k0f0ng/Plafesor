@@ -7,7 +7,7 @@ async function listarPorColegio(req, res) {
   const { colegio_id } = req.params;
   const { estado } = req.query;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -59,7 +59,7 @@ async function generarPlan(req, res) {
     const [[grupo]] = await db.query('SELECT colegio_id FROM grupos WHERE id = ?', [grupo_id]);
     if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
 
-    if (req.usuario.rol === 'director' && req.usuario.colegio_id !== grupo.colegio_id) {
+    if (req.usuario.colegio_id !== grupo.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este colegio' });
     }
 
@@ -82,7 +82,7 @@ async function generarPlan(req, res) {
 async function generarPlanesColegio(req, res) {
   const { colegio_id } = req.params;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes gestionar tu propio colegio' });
   }
 
@@ -110,7 +110,7 @@ async function actualizarEstado(req, res) {
     const [[plan]] = await db.query('SELECT colegio_id FROM planes_mejoramiento WHERE id = ?', [id]);
     if (!plan) return res.status(404).json({ error: 'Plan no encontrado' });
 
-    if (req.usuario.rol === 'director' && req.usuario.colegio_id !== plan.colegio_id) {
+    if (req.usuario.colegio_id !== plan.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este plan' });
     }
 

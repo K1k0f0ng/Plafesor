@@ -109,6 +109,19 @@
       body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+      /* Celular: ajustes generales del portal (no afectan la landing).
+         Las páginas usan estilos en línea, por eso aquí se necesita !important. */
+      @media (max-width: 900px) {
+        .pf-app img { max-width: 100%; }
+        .pf-navbar { padding: 0 16px !important; }
+        .pf-principal > div > div:not(.pf-navbar) { padding-left: 14px !important; padding-right: 14px !important; }
+        /* Las tablas se desplazan de lado en vez de desbordar la pantalla */
+        .pf-app table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        /* Evita que iOS haga zoom al tocar un campo */
+        .pf-app input, .pf-app select, .pf-app textarea { font-size: 16px !important; max-width: 100%; }
+        .pf-apilar-movil { grid-template-columns: 1fr !important; }
+      }
     </style>
   </head>
   <body>

@@ -17,4 +17,5 @@ export const MODULOS_DISPONIBLES = [
   { clave: 'asignaturas',          nombre: 'Asignaturas (Áreas, Materias, Carga Académica)' },
   { clave: 'cargue_historico',     nombre: 'Cargue de Histórico' },
   { clave: 'cierre_anio_lectivo',  nombre: 'Cierre de Año Lectivo' },
+  { clave: 'agenda_gestion',       nombre: 'Agenda Institucional (crear/editar eventos)' },
 ];

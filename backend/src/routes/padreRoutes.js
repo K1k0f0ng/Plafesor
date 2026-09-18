@@ -10,5 +10,6 @@ router.get('/listar',             permitirRoles('admin'),              ctrl.list
 router.post('/',                  permitirRoles('admin'),              ctrl.crear);
 router.post('/:id/vincular',      permitirRoles('admin'),              ctrl.vincular);
 router.delete('/:id',             permitirRoles('admin'),              ctrl.desactivar);
+router.put('/:id/reactivar',       permitirRoles('admin'),              ctrl.reactivar);
 
 module.exports = router;

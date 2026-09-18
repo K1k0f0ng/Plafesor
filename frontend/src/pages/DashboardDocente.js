@@ -432,7 +432,7 @@ export default function DashboardDocente() {
                     // ── Nivel 2: ficha + actividades de ese estudiante ──
                     <div>
                       <button onClick={() => setEstudianteSelId(null)} style={es.btnVolverLista}>← Volver a la lista</button>
-                      <div style={es.detalleGrid}>
+                      <div style={es.detalleGrid} className="pf-apilar-movil">
                         <div style={es.fichaCard}>
                           <FichaBasicaContenido datos={fichaEstudiante} cargando={cargandoFichaEstudiante} />
                         </div>

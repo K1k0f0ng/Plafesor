@@ -8,7 +8,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 async function listarGruposYMaterias(req, res) {
   const { colegio_id } = req.params;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes consultar datos de tu colegio' });
   }
 

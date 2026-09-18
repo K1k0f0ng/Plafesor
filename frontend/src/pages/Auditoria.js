@@ -163,18 +163,20 @@ export default function Auditoria() {
         </div>
 
         <div style={es.filtroRow}>
-          {[
-            { valor: '', label: 'Todas las acciones' },
-            ...Object.entries(ACCION_LABELS).map(([valor, label]) => ({ valor, label })),
-          ].map(op => (
-            <button
-              key={op.valor}
-              onClick={() => { setAccion(op.valor); setPagina(1); }}
-              style={{ ...es.filtroBtn, ...(accion === op.valor ? es.filtroBtnActivo : {}) }}
-            >
-              {op.label}
-            </button>
-          ))}
+          <label style={es.filtroLabel}>Filtrar por acción</label>
+          <select
+            value={accion}
+            onChange={e => { setAccion(e.target.value); setPagina(1); }}
+            style={es.filtroSelect}
+          >
+            <option value="">Todas las acciones</option>
+            {Object.entries(ACCION_LABELS)
+              .map(([valor, label]) => ({ valor, label }))
+              .sort((a, b) => a.label.localeCompare(b.label, 'es'))
+              .map(op => (
+                <option key={op.valor} value={op.valor}>{op.label}</option>
+              ))}
+          </select>
         </div>
 
         {error && <div style={es.errorBox}>{error}</div>}
@@ -249,9 +251,9 @@ const es = {
   subtitulo: { fontSize: '13px', color: '#888', margin: 0 },
   btnVolver: { background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: '14px', fontWeight: '600', padding: 0, fontFamily: 'inherit' },
 
-  filtroRow: { display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' },
-  filtroBtn: { padding: '8px 16px', borderRadius: '20px', border: '2px solid #e0e0e0', background: '#fff', cursor: 'pointer', fontSize: '12.5px', fontWeight: '600', color: '#666', fontFamily: 'inherit' },
-  filtroBtnActivo: { background: 'linear-gradient(135deg, #667eea, #764ba2)', borderColor: '#667eea', color: '#fff' },
+  filtroRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' },
+  filtroLabel: { fontSize: '12.5px', fontWeight: '600', color: '#666' },
+  filtroSelect: { padding: '9px 14px', borderRadius: '8px', border: '1.5px solid #e0e0e0', fontSize: '13.5px', fontFamily: 'inherit', background: '#fff', minWidth: '260px', color: '#333' },
 
   errorBox: { background: '#fff0f0', color: '#c62828', padding: '14px 18px', borderRadius: '12px', marginBottom: '20px' },
   cargando: { textAlign: 'center', padding: '60px', color: '#888', fontSize: '15px' },

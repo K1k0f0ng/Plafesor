@@ -26,7 +26,11 @@ const uploadFoto = multer({
 }).single('foto');
 
 const TIPOS_DOC_VALIDOS = ['CC', 'CE'];
-const ROLES_SISTEMA_VALIDOS = ['admin', 'director'];
+// 'orientador' = Orientador / Psicólogo escolar (módulo Bienestar). Crear la
+// cuenta NO le da acceso a casos: además el admin debe agregarlo al equipo de
+// orientación desde la configuración del módulo.
+const ROLES_SISTEMA_VALIDOS = ['admin', 'director', 'orientador'];
+const MSG_ROL_INVALIDO = 'El rol del sistema debe ser Administrador, Director u Orientador';
 
 function normalizarTipoDocumento(v) {
   if (!v) return null;
@@ -79,7 +83,7 @@ async function listar(req, res) {
              pd.fecha_ingreso_caja_compensacion, pd.fecha_ingreso_institucion
       FROM usuarios u
       LEFT JOIN personal_datos pd ON pd.usuario_id = u.id
-      WHERE u.colegio_id = ? AND u.rol IN ('admin', 'director')
+      WHERE u.colegio_id = ? AND u.rol IN ('admin', 'director', 'orientador')
       ORDER BY u.nombre ASC
     `, [req.usuario.colegio_id]);
     res.json({ data: filas });
@@ -103,7 +107,7 @@ async function crear(req, res) {
     return res.status(400).json({ error: 'Nombres, apellidos, correo y contraseña son obligatorios' });
   }
   if (!ROLES_SISTEMA_VALIDOS.includes(rol)) {
-    return res.status(400).json({ error: 'El rol del sistema debe ser Administrador o Director' });
+    return res.status(400).json({ error: MSG_ROL_INVALIDO });
   }
 
   const nombreCompleto = `${nombres.trim()} ${apellidos.trim()}`.trim();
@@ -163,7 +167,7 @@ async function actualizar(req, res) {
     return res.status(400).json({ error: 'Nombres, apellidos y correo son obligatorios' });
   }
   if (!ROLES_SISTEMA_VALIDOS.includes(rol)) {
-    return res.status(400).json({ error: 'El rol del sistema debe ser Administrador o Director' });
+    return res.status(400).json({ error: MSG_ROL_INVALIDO });
   }
 
   const nombreCompleto = `${nombres.trim()} ${apellidos.trim()}`.trim();
@@ -171,7 +175,7 @@ async function actualizar(req, res) {
   const conn = await db.getConnection();
   try {
     const [[existente]] = await conn.query(
-      `SELECT id FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+      `SELECT id FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director','orientador')`,
       [id, colegio_id]
     );
     if (!existente) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -217,7 +221,7 @@ async function eliminar(req, res) {
   const colegio_id = req.usuario.colegio_id;
   try {
     const [[usuario]] = await db.query(
-      `SELECT id, nombre FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+      `SELECT id, nombre FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director','orientador')`,
       [id, colegio_id]
     );
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -249,7 +253,7 @@ async function subirFoto(req, res) {
     const { id } = req.params;
     try {
       const [[usuario]] = await db.query(
-        `SELECT id, foto_url FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+        `SELECT id, foto_url FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director','orientador')`,
         [id, req.usuario.colegio_id]
       );
       if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -277,7 +281,7 @@ async function obtenerModulos(req, res) {
   const colegio_id = req.usuario.colegio_id;
   try {
     const [[usuario]] = await db.query(
-      `SELECT id FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+      `SELECT id FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director','orientador')`,
       [id, colegio_id]
     );
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -312,7 +316,7 @@ async function actualizarModulos(req, res) {
 
   try {
     const [[usuario]] = await db.query(
-      `SELECT id, nombre FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director')`,
+      `SELECT id, nombre FROM usuarios WHERE id = ? AND colegio_id = ? AND rol IN ('admin','director','orientador')`,
       [id, colegio_id]
     );
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });

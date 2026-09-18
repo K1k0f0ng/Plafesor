@@ -138,13 +138,18 @@ export default function Anotaciones() {
             ) : (
               <div style={es.roster}>
                 {estudiantes.map(est => (
-                  <button key={est.id} onClick={() => abrirPanel(est)} style={es.rosterItem}>
-                    <span style={es.rosterAvatar}>{formatearApellidoPrimero(est.nombre).charAt(0).toUpperCase()}</span>
-                    <span style={{ flex: 1, textAlign: 'left' }}>{formatearApellidoPrimero(est.nombre)}</span>
-                    {est.total_anotaciones > 0 && (
-                      <span style={es.rosterBadge}>{est.total_anotaciones}</span>
-                    )}
-                  </button>
+                  <div key={est.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button onClick={() => abrirPanel(est)} style={{ ...es.rosterItem, flex: 1 }}>
+                      <span style={es.rosterAvatar}>{formatearApellidoPrimero(est.nombre).charAt(0).toUpperCase()}</span>
+                      <span style={{ flex: 1, textAlign: 'left' }}>{formatearApellidoPrimero(est.nombre)}</span>
+                      {est.total_anotaciones > 0 && (
+                        <span style={es.rosterBadge}>{est.total_anotaciones}</span>
+                      )}
+                    </button>
+                    <button onClick={() => navigate(`/historial/${est.id}`)} style={es.btnFichaMedica} title="Ver ficha médica e historial">
+                      Ficha médica
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -249,6 +254,7 @@ const es = {
   rosterItem: { display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', border: '1px solid #f0f0f0', background: '#fafafa', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px', color: '#333', textAlign: 'left' },
   rosterAvatar: { width: '30px', height: '30px', borderRadius: '50%', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', fontSize: '13px', fontWeight: '800', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   rosterBadge: { background: '#667eea', color: '#fff', borderRadius: '20px', padding: '1px 9px', fontSize: '11px', fontWeight: '700' },
+  btnFichaMedica: { background: '#fff0f0', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: '8px', padding: '9px 12px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Panel lateral
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)', zIndex: 100 },

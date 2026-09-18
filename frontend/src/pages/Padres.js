@@ -8,25 +8,22 @@ export default function Padres() {
   const navigate = useNavigate();
   const [padres,      setPadres]      = useState([]);
   const [estudiantes, setEstudiantes] = useState([]);
-  const [colegios,    setColegios]    = useState([]);
   const [cargando,    setCargando]    = useState(true);
   const [guardando,   setGuardando]   = useState(false);
   const [mensaje,     setMensaje]     = useState('');
   const [error,       setError]       = useState('');
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', estudiante_id: '', colegio_id: '' });
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', estudiante_id: '' });
 
   useEffect(() => { cargar(); }, []);
 
   async function cargar() {
     try {
-      const [rPadres, rEst, rCol] = await Promise.all([
+      const [rPadres, rEst] = await Promise.all([
         axiosAuth.get('/api/padre/listar'),
         axiosAuth.get('/api/estudiantes'),
-        axiosAuth.get('/api/colegios'),
       ]);
       setPadres(rPadres.data.data);
       setEstudiantes(rEst.data.data.filter(e => e.activo));
-      setColegios(rCol.data.data.filter(c => c.activo));
     } catch {
       setError('Error al cargar los datos');
     } finally {
@@ -39,7 +36,7 @@ export default function Padres() {
     setGuardando(true); setError('');
     try {
       await axiosAuth.post('/api/padre', form);
-      setForm({ nombre: '', email: '', password: '', estudiante_id: '', colegio_id: '' });
+      setForm({ nombre: '', email: '', password: '', estudiante_id: '' });
       setMensaje('Cuenta de padre creada correctamente');
       await cargar();
       setTimeout(() => setMensaje(''), 3500);
@@ -57,6 +54,19 @@ export default function Padres() {
       await cargar();
     } catch {
       setError('Error al desactivar');
+    }
+  }
+
+  async function handleReactivar(id) {
+    if (!window.confirm('¿Reactivar este padre? Podrá volver a iniciar sesión.')) return;
+    setError('');
+    try {
+      await axiosAuth.put(`/api/padre/${id}/reactivar`);
+      await cargar();
+      setMensaje('Padre reactivado correctamente');
+      setTimeout(() => setMensaje(''), 3500);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al reactivar');
     }
   }
 
@@ -99,14 +109,6 @@ export default function Padres() {
                   {e.nombre} {e.nombre_grupo ? `(${e.grado}° ${e.nombre_grupo})` : ''}
                 </option>
               ))}
-            </select>
-            <select
-              value={form.colegio_id}
-              onChange={e => setForm({ ...form, colegio_id: e.target.value })}
-              style={es.select}
-            >
-              <option value="">— Colegio (opcional) —</option>
-              {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
             <button type="submit" disabled={guardando} style={es.btnPrimario}>
               {guardando ? 'Creando...' : '+ Crear cuenta'}
@@ -161,7 +163,9 @@ export default function Padres() {
                       </span>
                     </td>
                     <td style={es.td}>
-                      <button onClick={() => handleDesactivar(p.id)} style={es.btnPeligro}>Desactivar</button>
+                      {p.activo
+                        ? <button onClick={() => handleDesactivar(p.id)} style={es.btnPeligro}>Desactivar</button>
+                        : <button onClick={() => handleReactivar(p.id)} style={es.btnReactivar}>Reactivar</button>}
                     </td>
                   </tr>
                 ))}
@@ -196,4 +200,5 @@ const es = {
   badge:     { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
   badgeHijo: { background: '#e3f2fd', color: '#1565c0', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' },
   btnPeligro:{ background: '#fff0f0', border: '1px solid #ffcdd2', color: '#c62828', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
+  btnReactivar:{ background: '#e8f5e9', border: '1px solid #c8e6c9', color: '#2e7d32', borderRadius: '6px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' },
 };

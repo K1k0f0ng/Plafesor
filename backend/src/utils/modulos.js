@@ -25,16 +25,17 @@ const MODULOS_DISPONIBLES = [
   { clave: 'asignaturas',          nombre: 'Asignaturas (Áreas, Materias, Carga Académica)' },
   { clave: 'cargue_historico',     nombre: 'Cargue de Histórico' },
   { clave: 'cierre_anio_lectivo',  nombre: 'Cierre de Año Lectivo' },
+  { clave: 'agenda_gestion',       nombre: 'Agenda Institucional (crear/editar eventos)' },
 ];
 
 // Los que un colegio puede apagar para sí mismo desde "Módulos del Portal".
 // Las pantallas de back-office (auditoria, boletines, institucion_academica,
-// asignaturas, cargue_historico, cierre_anio_lectivo) solo se restringen por
-// persona, no para el colegio completo — un colegio no debería poder
-// apagarse a sí mismo la auditoría o el cierre de año.
+// asignaturas, cargue_historico, cierre_anio_lectivo, agenda_gestion) solo se
+// restringen por persona, no para el colegio completo — un colegio no
+// debería poder apagarse a sí mismo la auditoría o el cierre de año.
 const CLAVES_COLEGIO = MODULOS_DISPONIBLES
   .map(m => m.clave)
-  .filter(c => !['auditoria', 'boletines', 'institucion_academica', 'asignaturas', 'cargue_historico', 'cierre_anio_lectivo'].includes(c));
+  .filter(c => !['auditoria', 'boletines', 'institucion_academica', 'asignaturas', 'cargue_historico', 'cierre_anio_lectivo', 'agenda_gestion'].includes(c));
 
 const CLAVES_VALIDAS = MODULOS_DISPONIBLES.map(m => m.clave);
 

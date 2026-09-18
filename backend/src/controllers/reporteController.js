@@ -27,6 +27,15 @@ async function reporteDocente(req, res) {
   }
 
   try {
+    // Admin/director solo pueden ver reportes de docentes de su propio colegio
+    if (req.usuario.rol !== 'docente') {
+      const [[docente]] = await db.query("SELECT colegio_id FROM usuarios WHERE id = ? AND rol = 'docente'", [id]);
+      if (!docente) return res.status(404).json({ error: 'Docente no encontrado' });
+      if (docente.colegio_id !== req.usuario.colegio_id) {
+        return res.status(403).json({ error: 'No tienes acceso a este docente' });
+      }
+    }
+
     const [filas] = await db.query(`
       SELECT
         a.id, a.titulo, a.tipo, a.periodo,
@@ -67,7 +76,7 @@ async function reporteGrupoMateria(req, res) {
     );
     if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
 
-    if (req.usuario.rol !== 'admin' && grupo.colegio_id !== req.usuario.colegio_id) {
+    if (grupo.colegio_id !== req.usuario.colegio_id) {
       return res.status(403).json({ error: 'No tienes acceso a este grupo' });
     }
 
@@ -112,7 +121,7 @@ async function resumenColegio(req, res) {
   const { colegio_id } = req.params;
   const { periodo } = req.query;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -216,6 +225,15 @@ async function alertasDocente(req, res) {
   }
 
   try {
+    // Admin/director solo pueden ver alertas de docentes de su propio colegio
+    if (req.usuario.rol !== 'docente') {
+      const [[docente]] = await db.query("SELECT colegio_id FROM usuarios WHERE id = ? AND rol = 'docente'", [docente_id]);
+      if (!docente) return res.status(404).json({ error: 'Docente no encontrado' });
+      if (docente.colegio_id !== req.usuario.colegio_id) {
+        return res.status(403).json({ error: 'No tienes acceso a este docente' });
+      }
+    }
+
     const [filas] = await db.query(`
       SELECT
         u.id                         AS estudiante_id,
@@ -252,7 +270,7 @@ async function alertasDocente(req, res) {
 async function alertasColegio(req, res) {
   const { colegio_id } = req.params;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -294,7 +312,7 @@ async function metricasColegio(req, res) {
   const { colegio_id } = req.params;
   const { periodo } = req.query;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -459,7 +477,7 @@ async function evaluacionDocentes(req, res) {
   const { colegio_id } = req.params;
   const cid = parseInt(colegio_id);
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== cid) {
+  if (req.usuario.colegio_id !== cid) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -558,7 +576,7 @@ async function evaluacionDocentes(req, res) {
 async function comparativasPeriodos(req, res) {
   const { colegio_id } = req.params;
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== parseInt(colegio_id)) {
+  if (req.usuario.colegio_id !== parseInt(colegio_id)) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 
@@ -654,7 +672,7 @@ async function gemeloDigital(req, res) {
   const { colegio_id } = req.params;
   const cid = parseInt(colegio_id);
 
-  if (req.usuario.rol === 'director' && req.usuario.colegio_id !== cid) {
+  if (req.usuario.colegio_id !== cid) {
     return res.status(403).json({ error: 'Solo puedes ver tu propio colegio' });
   }
 

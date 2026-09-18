@@ -7,7 +7,7 @@ import { IconBell } from '../components/Icons';
 
 const RUTAS_POR_ROL = {
   admin: '/dashboard', docente: '/dashboard-docente', estudiante: '/dashboard-estudiante',
-  director: '/dashboard-director', padre: '/dashboard-padre',
+  director: '/dashboard-director', padre: '/dashboard-padre', orientador: '/bienestar',
 };
 
 // Qué categorías tiene sentido mostrarle a cada rol — no todos reciben todos

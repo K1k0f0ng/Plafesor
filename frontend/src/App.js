@@ -71,12 +71,23 @@ import Actividad from './pages/Actividad';
 import TutorIA from './pages/TutorIA';
 import HistorialEstudiante from './pages/HistorialEstudiante';
 
+// Bienestar y Orientación
+import BienestarInicio from './pages/bienestar/BienestarInicio';
+import ConfiguracionBienestar from './pages/bienestar/ConfiguracionBienestar';
+import RemitirOrientacion from './pages/bienestar/RemitirOrientacion';
+import MisRemisiones from './pages/bienestar/MisRemisiones';
+import RemisionesBandeja from './pages/bienestar/RemisionesBandeja';
+import Casos from './pages/bienestar/Casos';
+import CasoDetalle from './pages/bienestar/CasoDetalle';
+import AcompanamientosDirector from './pages/bienestar/AcompanamientosDirector';
+
 const RUTAS_POR_ROL = {
   admin:      '/dashboard',
   docente:    '/dashboard-docente',
   estudiante: '/dashboard-estudiante',
   director:   '/dashboard-director',
   padre:      '/dashboard-padre',
+  orientador: '/bienestar',
 };
 
 function PantallaCarga() {
@@ -186,6 +197,16 @@ function AppRoutes() {
 
       {/* Rutas Padre */}
       <Route path="/dashboard-padre" element={<RutaPrivada rolesPermitidos={['padre']}><DashboardPadre /></RutaPrivada>} />
+
+      {/* Bienestar y Orientación */}
+      <Route path="/bienestar"               element={<RutaPrivada rolesPermitidos={['orientador']}><BienestarInicio /></RutaPrivada>} />
+      <Route path="/bienestar/configuracion" element={<RutaPrivada rolesPermitidos={['admin']}><ConfiguracionBienestar /></RutaPrivada>} />
+      <Route path="/bienestar/remitir"        element={<RutaPrivada rolesPermitidos={['docente', 'director', 'orientador']}><RemitirOrientacion /></RutaPrivada>} />
+      <Route path="/bienestar/mis-remisiones" element={<RutaPrivada rolesPermitidos={['docente', 'director', 'orientador']}><MisRemisiones /></RutaPrivada>} />
+      <Route path="/bienestar/remisiones"     element={<RutaPrivada rolesPermitidos={['orientador']}><RemisionesBandeja /></RutaPrivada>} />
+      <Route path="/bienestar/casos"          element={<RutaPrivada rolesPermitidos={['orientador']}><Casos /></RutaPrivada>} />
+      <Route path="/bienestar/casos/:id"      element={<RutaPrivada rolesPermitidos={['orientador']}><CasoDetalle /></RutaPrivada>} />
+      <Route path="/bienestar/acompanamientos" element={<RutaPrivada rolesPermitidos={['director']}><AcompanamientosDirector /></RutaPrivada>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

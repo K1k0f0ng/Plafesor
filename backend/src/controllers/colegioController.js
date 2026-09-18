@@ -2,6 +2,7 @@ const db   = require('../database');
 const path = require('path');
 const fs   = require('fs');
 const multer = require('multer');
+const jwt    = require('jsonwebtoken');
 const { registrarAuditoria } = require('../utils/auditoria');
 
 const uploadsDir = path.join(__dirname, '../../uploads/logos');
@@ -102,4 +103,128 @@ async function subirLogo(req, res) {
   });
 }
 
-module.exports = { listar, actualizar, subirLogo };
+// Quién puede crear colegios adicionales: solo los correos de la plataforma
+// (variable ADMINS_PLATAFORMA en .env, separados por coma). Un admin normal
+// de un colegio cliente no debe poder crear colegios por su cuenta.
+function correosPlataforma() {
+  return (process.env.ADMINS_PLATAFORMA || 'admin@playfesor.co')
+    .split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+}
+
+async function puedeCrearColegios(usuarioId) {
+  const [[u]] = await db.query('SELECT email FROM usuarios WHERE id = ?', [usuarioId]);
+  return !!u && correosPlataforma().includes(u.email.toLowerCase());
+}
+
+// Colegios a los que el admin tiene acceso: el activo + los de usuario_colegios
+async function colegiosDelUsuario(usuarioId, colegioActivoId) {
+  const [filas] = await db.query(
+    `SELECT c.id, c.nombre, c.ciudad, c.logo_url
+     FROM colegios c
+     WHERE c.id = ? OR c.id IN (SELECT colegio_id FROM usuario_colegios WHERE usuario_id = ?)
+     ORDER BY c.nombre`,
+    [colegioActivoId, usuarioId]
+  );
+  return filas;
+}
+
+// GET /api/colegios/mis-colegios
+async function misColegios(req, res) {
+  try {
+    const filas = await colegiosDelUsuario(req.usuario.id, req.usuario.colegio_id);
+    res.json({
+      data: filas.map(c => ({ ...c, actual: c.id === req.usuario.colegio_id })),
+      puede_crear: await puedeCrearColegios(req.usuario.id),
+    });
+  } catch (err) {
+    console.error('Error al listar colegios del usuario:', err);
+    res.status(500).json({ error: 'Error al obtener tus colegios' });
+  }
+}
+
+// POST /api/colegios — crea un colegio adicional y da acceso al admin que lo crea
+async function crear(req, res) {
+  const nombre = (req.body.nombre || '').trim();
+  const ciudad = (req.body.ciudad || '').trim();
+  const lema   = (req.body.lema || '').trim();
+  if (!nombre) return res.status(400).json({ error: 'El nombre del colegio es obligatorio' });
+  if (nombre.length > 150) return res.status(400).json({ error: 'El nombre es demasiado largo' });
+
+  try {
+    if (!(await puedeCrearColegios(req.usuario.id))) {
+      return res.status(403).json({ error: 'Tu cuenta no tiene permiso para crear colegios' });
+    }
+  } catch (err) {
+    console.error('Error al verificar permiso de creación:', err);
+    return res.status(500).json({ error: 'Error al crear el colegio' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [r] = await conn.query(
+      'INSERT INTO colegios (nombre, ciudad, lema) VALUES (?, ?, ?)',
+      [nombre, ciudad || null, lema || null]
+    );
+    // Se registra también el colegio actual para poder volver a él después de cambiar
+    const accesos = [[req.usuario.id, r.insertId]];
+    if (req.usuario.colegio_id) accesos.push([req.usuario.id, req.usuario.colegio_id]);
+    await conn.query('INSERT IGNORE INTO usuario_colegios (usuario_id, colegio_id) VALUES ?', [accesos]);
+    await conn.commit();
+
+    registrarAuditoria({
+      colegio_id: r.insertId, usuario_id: req.usuario.id,
+      usuario_nombre: req.usuario.nombre, usuario_rol: req.usuario.rol,
+      accion: 'colegio_creado', entidad: 'colegio', entidad_id: r.insertId,
+      detalle: { nombre, ciudad, creado_desde_colegio: req.usuario.colegio_id },
+    });
+
+    res.status(201).json({ data: { id: r.insertId, nombre, ciudad: ciudad || null } });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Error al crear colegio:', err);
+    res.status(500).json({ error: 'Error al crear el colegio' });
+  } finally {
+    conn.release();
+  }
+}
+
+// POST /api/colegios/:id/cambiar — el admin pasa a administrar otro de sus colegios.
+// Se actualiza usuarios.colegio_id (así el próximo login entra al mismo colegio)
+// y se emite un token nuevo, porque todos los módulos leen colegio_id del token.
+async function cambiar(req, res) {
+  const destinoId = parseInt(req.params.id);
+  if (!destinoId) return res.status(400).json({ error: 'Colegio inválido' });
+
+  try {
+    const permitidos = await colegiosDelUsuario(req.usuario.id, req.usuario.colegio_id);
+    const destino = permitidos.find(c => c.id === destinoId);
+    if (!destino) return res.status(403).json({ error: 'No tienes acceso a ese colegio' });
+
+    await db.query('UPDATE usuarios SET colegio_id = ? WHERE id = ?', [destinoId, req.usuario.id]);
+
+    const [[u]] = await db.query(
+      'SELECT id, nombre, email, rol, colegio_id, grupo_dirigido_id, foto_url, cargo FROM usuarios WHERE id = ?',
+      [req.usuario.id]
+    );
+    const token = jwt.sign(
+      { id: u.id, rol: u.rol, colegio_id: u.colegio_id, nombre: u.nombre, cargo: u.cargo || null },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    );
+
+    registrarAuditoria({
+      colegio_id: destinoId, usuario_id: u.id,
+      usuario_nombre: u.nombre, usuario_rol: u.rol,
+      accion: 'colegio_cambiado', entidad: 'colegio', entidad_id: destinoId,
+      detalle: { desde_colegio: req.usuario.colegio_id },
+    });
+
+    res.json({ token, usuario: { ...u, cargo: u.cargo || null, debe_cambiar_password: false } });
+  } catch (err) {
+    console.error('Error al cambiar de colegio:', err);
+    res.status(500).json({ error: 'Error al cambiar de colegio' });
+  }
+}
+
+module.exports = { listar, actualizar, subirLogo, misColegios, crear, cambiar };

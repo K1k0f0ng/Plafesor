@@ -32,7 +32,7 @@ export default function Citaciones() {
   const [seleccionado, setSeleccionado] = useState(null);
   const [citaciones, setCitaciones] = useState([]);
   const [cargandoPanel, setCargandoPanel] = useState(false);
-  const [form, setForm] = useState({ motivo: '', fecha_cita: '', hora_cita: '', lugar: '' });
+  const [form, setForm] = useState({ motivo: '', fecha_cita: '', hora_cita: '', lugar: '', notificar_whatsapp: true, notificar_mensajeria: false });
   const [guardando, setGuardando] = useState(false);
   const [exito, setExito] = useState('');
 
@@ -55,7 +55,7 @@ export default function Citaciones() {
 
   function abrirPanel(estudiante) {
     setSeleccionado(estudiante);
-    setForm({ motivo: '', fecha_cita: '', hora_cita: '', lugar: '' });
+    setForm({ motivo: '', fecha_cita: '', hora_cita: '', lugar: '', notificar_whatsapp: true, notificar_mensajeria: false });
     setExito('');
     setCargandoPanel(true);
     axiosAuth.get(`/api/citaciones/estudiante/${estudiante.id}`)
@@ -80,11 +80,17 @@ export default function Citaciones() {
         fecha_cita: form.fecha_cita || null,
         hora_cita: form.hora_cita || null,
         lugar: form.lugar.trim() || null,
+        notificar_whatsapp: form.notificar_whatsapp,
+        notificar_mensajeria: form.notificar_mensajeria,
       });
-      setExito(resp.data.data.whatsapp_enviado
-        ? 'Citación enviada por WhatsApp al acudiente.'
-        : 'Citación guardada. No se pudo enviar por WhatsApp (verifica el teléfono registrado), pero el acudiente la verá en su portal.');
-      setForm({ motivo: '', fecha_cita: '', hora_cita: '', lugar: '' });
+      const { whatsapp_enviado, mensajeria_enviada } = resp.data.data;
+      const canales = [];
+      if (form.notificar_whatsapp) canales.push(whatsapp_enviado ? 'WhatsApp' : 'WhatsApp (no se pudo enviar — verifica el teléfono registrado)');
+      if (form.notificar_mensajeria) canales.push(mensajeria_enviada ? 'Mensajería Interna' : 'Mensajería Interna (no se pudo enviar)');
+      setExito(canales.length
+        ? `Citación guardada. Notificada por: ${canales.join(' y ')}. También queda visible en el portal del acudiente.`
+        : 'Citación guardada. El acudiente la verá en su portal y en la campanita de notificaciones.');
+      setForm({ motivo: '', fecha_cita: '', hora_cita: '', lugar: '', notificar_whatsapp: true, notificar_mensajeria: false });
       const historial = await axiosAuth.get(`/api/citaciones/estudiante/${seleccionado.id}`);
       setCitaciones(historial.data.data);
       cargarRoster();
@@ -111,8 +117,8 @@ export default function Citaciones() {
         <button onClick={() => navigate(rutaPanel)} style={es.btnVolver}>← Volver al panel</button>
 
         <p style={es.ayuda}>
-          Convoca a una reunión al acudiente de un estudiante. Se envía de inmediato por WhatsApp y también
-          queda visible en el portal de la familia, aunque el envío por WhatsApp falle.
+          Convoca a una reunión al acudiente de un estudiante. Elige por qué canal avisarle además de que
+          quede visible en su portal — la campanita de notificaciones siempre se activa.
         </p>
 
         <div style={es.card}>
@@ -188,13 +194,26 @@ export default function Citaciones() {
                 onChange={e => setForm({ ...form, lugar: e.target.value })}
                 style={{ ...es.input, marginBottom: '10px' }}
               />
+
+              <p style={{ ...es.label, marginBottom: '6px' }}>Notificar al acudiente por</p>
+              <label style={es.checkFila}>
+                <input type="checkbox" checked={form.notificar_whatsapp}
+                  onChange={e => setForm({ ...form, notificar_whatsapp: e.target.checked })} />
+                📲 WhatsApp
+              </label>
+              <label style={{ ...es.checkFila, marginBottom: '10px' }}>
+                <input type="checkbox" checked={form.notificar_mensajeria}
+                  onChange={e => setForm({ ...form, notificar_mensajeria: e.target.checked })} />
+                💬 Mensajería Interna
+              </label>
+
               {exito && <div style={es.exitoBox}>{exito}</div>}
               <button
                 onClick={enviarCitacion}
                 disabled={guardando || !form.motivo.trim()}
                 style={{ ...es.btnPrimario, opacity: (guardando || !form.motivo.trim()) ? 0.5 : 1 }}
               >
-                {guardando ? 'Enviando...' : '📲 Citar por WhatsApp'}
+                {guardando ? 'Enviando...' : 'Enviar citación'}
               </button>
 
               <p style={{ ...es.panelSecTitulo, marginTop: '24px' }}>Historial</p>
@@ -210,7 +229,7 @@ export default function Citaciones() {
                       <div key={c.id} style={es.citaCard}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                           <span style={{ ...es.estadoBadge, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
-                          {!c.whatsapp_enviado && <span style={es.avisoBadge}>Sin WhatsApp</span>}
+                          {!c.whatsapp_enviado && <span style={es.avisoBadge}>No enviada por WhatsApp</span>}
                         </div>
                         <p style={es.citaTexto}>{c.motivo}</p>
                         {(c.fecha_cita || c.lugar) && (
@@ -266,6 +285,7 @@ const es = {
   panelSecTitulo: { fontSize: '11px', fontWeight: '700', color: '#bbb', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 12px' },
 
   textarea: { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e8e8e8', fontSize: '14px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical', marginBottom: '10px' },
+  checkFila: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: '#333', marginBottom: '6px', cursor: 'pointer' },
   btnPrimario: { width: '100%', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: '#fff', border: 'none', borderRadius: '8px', padding: '11px 20px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' },
 
   citaCard: { background: '#fafafa', borderRadius: '10px', padding: '12px 14px' },
